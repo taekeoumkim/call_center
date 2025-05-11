@@ -1,0 +1,39 @@
+{
+  "clients": [
+    {
+      "id": 1,
+      "riskLevel": 1,
+      "phone": "010-1234-5678"
+    },
+    {
+      "id": 2,
+      "riskLevel": 3,
+      "phone": "010-3456-0000"
+    },
+    {
+      "id": 3,
+      "riskLevel": 2,
+      "phone": "010-0928-5567"
+    },
+    {
+      "id": 4,
+      "riskLevel": 3,
+      "phone": "010-3444-2121"
+    },
+    {
+      "id": 5,
+      "riskLevel": 1,
+      "phone": "010-1133-2525"
+    },
+    {
+      "id": 6,
+      "riskLevel": 1,
+      "phone": "010-9041-3322"
+    },
+    {
+      "id": 7,
+      "riskLevel": 2,
+      "phone": "010-7776-5552"
+    }
+  ]
+}
