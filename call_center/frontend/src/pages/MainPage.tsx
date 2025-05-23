@@ -19,21 +19,21 @@ interface DecodedToken {
 interface Client {
   id: number;
   phone: string;
-  risk: 1 | 2 | 3;
+  risk: 0 | 1 | 2;
 }
 
 // 위험도 라벨 매핑
 const riskLabels = {
-  1: '자살위험도 낮음',
-  2: '자살위험도 중간',
-  3: '자살위험도 높음',
+  0: '자살위험도 낮음',
+  1: '자살위험도 중간',
+  2: '자살위험도 높음',
 };
 
 // 위험도 색상 매핑 (테두리 색)
 const riskColors = {
-  1: 'border-green-500',
-  2: 'border-yellow-400',
-  3: 'border-red-500',
+  0: 'border-green-500',
+  1: 'border-yellow-400',
+  2: 'border-red-500',
 };
 
 const MainPage = () => {
