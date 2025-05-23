@@ -1,0 +1,160 @@
+# ===================================================================
+# General / OS / IDE Specific (Applies projetos-wide)
+# ===================================================================
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE / Editor specific
+.vscode/
+.idea/
+*.iml
+# .history/ # VSCode Local History extension
+# misc.xml
+# modules.xml
+# workspace.xml
+# shelf/ # PyCharm Shelve feature
+.editorconfig
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# Environments - Top level (if any, and not part of frontend/backend)
+.env # General .env at root
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Logs - Top level
+logs/ # General logs directory at root
+*.log # General log files at root
+
+# ===================================================================
+# Frontend Specific (prefix with frontend/)
+# ===================================================================
+
+# dependencies
+frontend/node_modules/
+frontend/.pnp/
+frontend/.pnp.js
+
+# testing
+frontend/coverage/
+
+# production
+frontend/build/
+
+# misc
+frontend/.DS_Store # Handled by general .DS_Store, but explicit for clarity if needed
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ===================================================================
+# Backend Specific (prefix with backend/)
+# ===================================================================
+
+# Byte-compiled / optimized / DLL files
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+
+# C extensions
+backend/*.so
+
+# Distribution / packaging
+backend/.Python
+# backend/build/ # This might conflict with frontend/build, be specific if backend also has a build dir
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib60/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+backend/pip-wheel-metadata/
+backend/share/python-wheels/
+backend/*.egg-info/
+backend/.installed.cfg
+backend/*.egg
+backend/MANIFEST
+
+# PyInstaller
+backend/*.manifest
+backend/*.spec
+
+# Installer logs
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+backend/htmlcov/
+backend/.tox/
+backend/.nox/
+backend/.coverage
+backend/.coverage.*
+backend/.cache # Be careful if frontend also uses a .cache dir at its root
+backend/nosetests.xml
+backend/coverage.xml
+backend/*.cover
+# backend/*.log # Already covered by general *.log, or backend/logs/ if specific
+backend/.hypothesis/
+backend/.pytest_cache/
+
+# Translations
+backend/*.mo
+backend/*.pot
+
+# Flask stuff
+backend/instance/ # Includes app.db and uploads/ by default
+# backend/instance/app.db # If you want to ignore instance/ but keep some files
+# backend/instance/uploads/ # This is covered by backend/instance/
+.webassets-cache # If used at backend root
+backend/.flask_session/
+
+# Environments - Backend specific
+backend/.env # Backend specific .env
+backend/.venv/
+backend/env/
+backend/venv/
+backend/ENV/
+backend/env.bak/
+backend/venv.bak/
+
+# SQLite - Backend specific (already covered by backend/instance/ or general *.db)
+# backend/*.db
+# backend/*.db-journal
+# backend/*.sqlite
+# backend/*.sqlite3
+
+# Logs - Backend specific
+# backend/logs/ # If backend has its own logs directory
+# backend/npm-debug.log* # Usually not in backend, but kept if from original
+# backend/yarn-debug.log* # Usually not in backend
+# backend/yarn-error.log* # Usually not in backend
+# backend/lerna-debug.log* # Usually not in backend
+
+# ===================================================================
+# Top-level node_modules (if it exists outside frontend/backend)
+# ===================================================================
+/node_modules
