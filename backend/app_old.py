@@ -9,6 +9,10 @@ import bcrypt
 import jwt
 import datetime
 import random
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+import torch.nn.functional as F
+
 
 # Flask 앱 생성 및 CORS 설정
 app = Flask(__name__)
@@ -17,6 +21,29 @@ CORS(app, supports_credentials=True)  # 쿠키 포함한 CORS 허용
 app.config['SECRET_KEY'] = 'your_secret_key'  # JWT 비밀 키
 DB_PATH = 'database.db'  # SQLite DB 파일 경로
 
+
+#---------------------------- Whisper 모델 -------------------------------
+# 모델 로드 코드 및 함수 작성
+
+#--------------------------- 자살 위험도 예측 모델 -----------------------------------------------
+tokenizer = AutoTokenizer.from_pretrained("seungb1027/koelectra-suicide-risk")
+model = AutoModelForSequenceClassification.from_pretrained("seungb1027/koelectra-suicide-risk")
+
+# CUDA 사용 가능하면 GPU, 아니면 CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+model.eval()
+
+#------------------------------ 위험도 예측 함수-------------------------------------------------
+def predict_label(text):
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=128)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = F.softmax(outputs.logits, dim=-1)
+        label = torch.argmax(probs, dim=-1).item()
+    return label  # 0 / 1 / 2
 # ----------------------------- DB 연결 함수 -----------------------------
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
