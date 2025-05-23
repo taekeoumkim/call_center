@@ -1,11 +1,14 @@
 # backend/app/routes/auth_routes.py
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-# from flask_jwt_extended import create_access_token, create_refresh_token # JWT 사용 시
-from .. import db # app/__init__.py 의 db 객체
-from ..models import User # app/models.py 의 User 모델
+from flask_jwt_extended import (
+    create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
+)
+from datetime import datetime, timezone
+from .. import db
+from ..models import User, TokenBlocklist
 
-auth_bp = Blueprint('auth', __name__) # 'auth' 라는 이름의 블루프린트 생성
+auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
@@ -45,29 +48,55 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'message': 'Invalid username or password'}), 401
 
-    # JWT 토큰 생성 (예시)
-    # access_token = create_access_token(identity=user.id)
-    # refresh_token = create_refresh_token(identity=user.id)
-    # return jsonify(access_token=access_token, refresh_token=refresh_token), 200
+    # JWT 토큰 생성
+    access_token = create_access_token(identity=user.id, fresh=True) # 로그인 시 fresh 토큰
+    refresh_token = create_refresh_token(identity=user.id)
 
-    # JWT를 사용하지 않는 경우, 세션 기반 로그인 또는 간단한 성공 메시지
-    # 여기서는 임시로 성공 메시지만 반환 (실제 프로젝트에서는 JWT 또는 세션 사용)
     user.status = 'available' # 로그인 시 상담 가능 상태로 변경 (예시)
     try:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Failed to update user status', 'error': str(e)}), 500
+        return jsonify({'message': 'Login successful, but failed to update user status', 'error': str(e)}), 500
 
-    return jsonify({'message': 'Login successful', 'user_id': user.id, 'name': user.name}), 200
+    return jsonify({'message': 'Login successful',
+                    'access_token': access_token, 'refresh_token': refresh_token,
+                    'user_id': user.id, 'name': user.name, 'username': user.username}), 200
 
-# 필요한 경우 로그아웃 라우트 등 추가
-@auth_bp.route('/logout', methods=['POST']) # JWT를 사용한다면 토큰 블랙리스트 처리 등이 필요
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required(verify_type=False) # 토큰 검증 비활성화
 def logout():
-    # data = request.get_json()
-    # user_id = data.get('user_id') # 또는 JWT 토큰에서 사용자 식별
-    # user = User.query.get(user_id)
-    # if user:
-    #     user.status = 'offline'
-    #     db.session.commit()
-    return jsonify({'message': 'Logout successful (implement proper session/token invalidation)'}), 200
+    token = get_jwt() # 현재 요청의 JWT payload 전체를 가져옴
+    jti = token["jti"]
+    token_type = token["type"] # 'access' or 'refresh'
+
+    # TokenBlocklist에 이미 있는지 확인 (선택 사항, 중복 저장 방지)
+    existing_token = TokenBlocklist.query.filter_by(jti=jti).one_or_none()
+    if existing_token:
+        return jsonify({"message": f"Token already revoked ({token_type} token)"}), 200
+
+
+    # created_at은 모델에서 default로 설정되지만, 명시적으로 지정할 수도 있음
+    # token_expires = datetime.fromtimestamp(token["exp"], tz=timezone.utc) # 토큰의 실제 만료 시간
+    db_token = TokenBlocklist(jti=jti, created_at=datetime.now(timezone.utc))
+
+    try:
+        db.session.add(db_token)
+        db.session.commit()
+        # 사용자 상태를 'offline'으로 변경
+        current_user_id = get_jwt_identity()
+        user = User.query.get(current_user_id)
+        if user:
+            user.status = 'offline'
+            db.session.commit()
+        return jsonify({"message": f"Successfully logged out. {token_type.capitalize()} token revoked."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Failed to logout", "error": str(e)}), 500
+
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True) # refresh=True 옵션으로 Refresh Token만 허용
+def refresh_access_token():
+    current_user_id = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user_id, fresh=False) # (non-fresh token)
+    return jsonify(access_token=new_access_token), 200

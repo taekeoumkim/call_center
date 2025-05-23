@@ -1,9 +1,7 @@
 # backend/app/models.py
 from . import db # app/__init__.py 에서 생성된 db 객체를 가져옴
-from datetime import datetime # datetime을 사용한다면
-# from werkzeug.security import generate_password_hash, check_password_hash # 비밀번호 해싱을 사용한다면
+from datetime import datetime, timezone
 
-# --- 기존 app.py (또는 app_old.py)에서 복사해 온 모델 클래스들 ---
 class User(db.Model): # 예시 모델, 실제 모델명으로 대체
     __tablename__ = 'users' # 테이블명 명시 권장
     id = db.Column(db.Integer, primary_key=True)
@@ -63,5 +61,12 @@ class ConsultationReport(db.Model):
 
     def __repr__(self):
         return f'<ConsultationReport {self.id} for ClientCall {self.client_call_id}>'
+    
+class TokenBlocklist(db.Model):
+    __tablename__ = "token_blocklist"
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True) # JWT ID
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)) # UTC 시간으로 저장
 
-# 여기에 프로젝트에 필요한 다른 모델들을 추가합니다.
+    def __repr__(self):
+        return f"<TokenBlocklist {self.jti}>"

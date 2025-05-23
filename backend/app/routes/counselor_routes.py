@@ -1,6 +1,6 @@
 # backend/app/routes/counselor_routes.py
 from flask import Blueprint, request, jsonify
-# from flask_jwt_extended import jwt_required, get_jwt_identity # JWT 사용 시
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from .. import db
 from ..models import User, ClientCall, ConsultationReport
 
@@ -8,22 +8,20 @@ counselor_bp = Blueprint('counselor', __name__)
 
 # --- 상담사 상태 변경 ---
 @counselor_bp.route('/status', methods=['POST'])
-# @jwt_required() # JWT 인증 필요
+@jwt_required()
 def update_counselor_status():
-    # user_id = get_jwt_identity() # JWT에서 사용자 ID 가져오기
-    # 임시: 요청 바디에서 user_id를 받는다고 가정 (JWT 구현 전)
+    current_user_id = get_jwt_identity() # JWT에서 사용자(상담사) ID 가져오기
     data = request.get_json()
-    user_id = data.get('user_id')
     new_status = data.get('status') # 'available', 'busy', 'offline' 등
 
-    if not user_id or not new_status:
-        return jsonify({'message': 'User ID and status are required'}), 400
-
-    user = User.query.get(user_id)
+    if not new_status:
+        return jsonify({'message': 'Status is required'}), 400
+    
+    user = User.query.get(current_user_id)
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'User not found (from token)'}), 404
 
-    allowed_statuses = ['available', 'busy', 'offline'] # 예시
+    allowed_statuses = ['available', 'busy', 'offline']
     if new_status not in allowed_statuses:
         return jsonify({'message': f'Invalid status. Allowed: {", ".join(allowed_statuses)}'}), 400
 
@@ -37,21 +35,16 @@ def update_counselor_status():
 
 # --- 상담사 대기열 조회 ---
 @counselor_bp.route('/queue', methods=['GET'])
-# @jwt_required()
+@jwt_required()
 def get_counselor_queue():
-    # user_id = get_jwt_identity()
-    # 임시: 쿼리 파라미터에서 user_id를 받는다고 가정
-    user_id = request.args.get('user_id', type=int)
-    if not user_id:
-        return jsonify({'message': 'User ID is required'}), 400
-
-    user = User.query.get(user_id)
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
     if not user:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'User not found (from token)'}), 404
 
     # 해당 상담사에게 배정된 'pending' 또는 'assigned' 상태의 통화 목록
     # 위험도 높은 순 -> 접수 시간 빠른 순 정렬
-    calls = ClientCall.query.filter_by(assigned_counselor_id=user_id)\
+    calls = ClientCall.query.filter_by(assigned_counselor_id=current_user_id)\
                             .filter(ClientCall.status.in_(['pending', 'assigned']))\
                             .order_by(ClientCall.risk_level.desc(), ClientCall.received_at.asc())\
                             .all()
@@ -67,28 +60,25 @@ def get_counselor_queue():
 
 # --- 소견서 저장 ---
 @counselor_bp.route('/report/save', methods=['POST'])
-# @jwt_required()
+@jwt_required()
 def save_report():
-    # counselor_id = get_jwt_identity()
+    counselor_id = get_jwt_identity()
     data = request.get_json()
-    # 임시: counselor_id를 요청 바디에서 받음
-    counselor_id = data.get('counselor_id')
+    
     client_call_id = data.get('client_call_id')
     client_name = data.get('client_name')
     client_age = data.get('client_age')
     client_gender = data.get('client_gender')
     memo_text = data.get('memo_text')
-    # risk_level_recorded는 client_call에서 가져오거나, 프론트에서 다시 전달받을 수 있음
-    # 여기서는 client_call에서 가져온다고 가정
 
-    if not all([counselor_id, client_call_id, memo_text]): # 필수 필드 확인
-        return jsonify({'message': 'Counselor ID, Client Call ID, and Memo are required'}), 400
+    if not all([client_call_id, memo_text]): # 필수 필드 확인
+        return jsonify({'message': 'Client Call ID, and Memo are required'}), 400
 
     client_call = ClientCall.query.get(client_call_id)
     if not client_call:
         return jsonify({'message': 'Client call not found'}), 404
     if client_call.assigned_counselor_id != counselor_id: # 권한 확인 (해당 상담사의 통화인지)
-         return jsonify({'message': 'Unauthorized to report on this call'}), 403
+         return jsonify({'message': 'Unauthorized to report on this call. Not assigned to you.'}), 403
 
 
     new_report = ConsultationReport(
@@ -112,13 +102,9 @@ def save_report():
 
 # --- 상담사 마이페이지 - 상담 완료 리스트 및 소견서 조회 라우트 (구현 필요) ---
 @counselor_bp.route('/myreports', methods=['GET'])
-# @jwt_required()
+@jwt_required()
 def get_my_reports():
-    # counselor_id = get_jwt_identity()
-    # 임시
-    counselor_id = request.args.get('counselor_id', type=int)
-    if not counselor_id:
-        return jsonify({'message': 'Counselor ID required'}), 400
+    counselor_id = get_jwt_identity()
 
     # 검색 기능 추가 (이름 또는 전화번호)
     search_by = request.args.get('search_by') # 'name' or 'phone'
@@ -145,15 +131,13 @@ def get_my_reports():
     return jsonify(reports_data), 200
 
 @counselor_bp.route('/report/<int:report_id>', methods=['GET'])
-# @jwt_required()
+@jwt_required()
 def get_report_detail(report_id):
-    # counselor_id = get_jwt_identity()
-    # 임시
-    # counselor_id_param = request.args.get('counselor_id', type=int) # 권한 확인용
-
+    current_counselor_id = get_jwt_identity()
     report = ConsultationReport.query.get_or_404(report_id)
-    # if report.counselor_id != counselor_id_param: # 권한 확인
-    #     return jsonify({'message': 'Unauthorized'}), 403
+
+    if report.counselor_id != current_counselor_id: # 권한 확인
+        return jsonify({'message': 'Unauthorized to view this report'}), 403
 
     # ClientCall 정보도 함께 반환하면 좋음
     client_call = ClientCall.query.get(report.client_call_id)

@@ -36,7 +36,7 @@ def submit_client_data():
     if audio_file and allowed_file(audio_file.filename):
         filename = secure_filename(audio_file.filename) # 안전한 파일 이름 사용
         # 파일명 중복 방지를 위해 타임스탬프나 UUID 추가 권장
-        # 예: import uuid; filename = str(uuid.uuid4()) + "_" + filename
+        import uuid; filename = str(uuid.uuid4()) + "_" + filename
         audio_file_path = os.path.join(UPLOAD_FOLDER, filename)
         audio_file.save(audio_file_path)
 
@@ -59,7 +59,7 @@ def submit_client_data():
         # 실제로는 대기열 수 등을 고려해야 함. 여기서는 가장 간단하게 첫번째 상담사에게 배정.
         # 또는 랜덤으로 배정할 수도 있음.
         # assigned_counselor = random.choice(available_counselors) if available_counselors else None
-        # 여기서는 가장 대기열이 적은 상담사를 찾는 로직이 필요 (추후 구현)
+        # 상담사가 대기열 조회 후 담당할 내담자 결정 (추후 구현)
         # 지금은 일단 첫 번째 상담사로 가정
         assigned_counselor = available_counselors[0]
 
@@ -82,7 +82,7 @@ def submit_client_data():
             }), 201
         except Exception as e:
             db.session.rollback()
-            # 실패 시 저장된 오디오 파일도 삭제하는 것이 좋음
+            # 실패 시 저장된 오디오 파일도 삭제
             if os.path.exists(audio_file_path):
                 os.remove(audio_file_path)
             return jsonify({'message': 'Failed to submit call data', 'error': str(e)}), 500
