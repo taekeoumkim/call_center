@@ -68,11 +68,11 @@ const MyPage: React.FC = () => {
   // 숫자형 위험도 값을 텍스트로 변환
   const riskToText = (risk: number) => {
     switch (risk) {
-      case 1:
+      case 0:
         return '낮음';
-      case 2:
+      case 1:
         return '중간';
-      case 3:
+      case 2:
         return '높음';
       default:
         return '알 수 없음';

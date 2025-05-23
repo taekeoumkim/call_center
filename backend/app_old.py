@@ -94,7 +94,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS clients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             phone TEXT NOT NULL,
-            risk INTEGER NOT NULL CHECK (risk IN (1, 2, 3)),
+            risk INTEGER NOT NULL CHECK (risk IN (0, 1, 2)),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             counselor_id INTEGER
         )
@@ -245,8 +245,8 @@ def submit_audio():
     filename = secure_filename(audio_file.filename)
     _ = audio_file.read()  # 오디오 파일 내용은 실제 사용 안 함 (시뮬레이션)
 
-    # 위험도 랜덤 지정 (1~3)
-    risk = random.choice([1, 2, 3])
+    # 위험도 랜덤 지정 (0~2)
+    risk = random.choice([0, 1, 2])
 
     conn = get_db_connection()
     cur = conn.cursor()

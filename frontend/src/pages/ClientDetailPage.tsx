@@ -11,7 +11,7 @@ axios.defaults.baseURL = 'http://localhost:5000';
 interface Client {
   id: number;
   phone: string;
-  risk: 1 | 2 | 3;  // 자살 위험도 (1: 낮음, 2: 중간, 3: 높음)
+  risk: 0 | 1 | 2;  // 자살 위험도 (0: 낮음, 1: 중간, 2: 높음)
 }
 
 // JWT 토큰 디코딩 결과 인터페이스
@@ -30,16 +30,16 @@ interface FormState {
 
 // 자살 위험도에 따른 색상 스타일
 const riskColors = {
-  1: 'bg-green-500',
-  2: 'bg-yellow-400',
-  3: 'bg-red-500',
+  0: 'bg-green-500',
+  1: 'bg-yellow-400',
+  2: 'bg-red-500',
 };
 
 // 자살 위험도 라벨
 const riskLabels = {
-  1: '자살위험도 낮음',
-  2: '자살위험도 중간',
-  3: '자살위험도 높음',
+  0: '자살위험도 낮음',
+  1: '자살위험도 중간',
+  2: '자살위험도 높음',
 };
 
 const ClientDetailPage = () => {
