@@ -9,9 +9,11 @@ import bcrypt
 import jwt
 import datetime
 import random
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoProcessor, AutoModelForSpeechSeq2Seq
 import torch
 import torch.nn.functional as F
+import sounddevice as sd, numpy as np, queue, torch, threading, torch.nn.functional as F
+import time
 
 
 # Flask 앱 생성 및 CORS 설정
@@ -22,8 +24,19 @@ app.config['SECRET_KEY'] = 'your_secret_key'  # JWT 비밀 키
 DB_PATH = 'database.db'  # SQLite DB 파일 경로
 
 
-#---------------------------- Whisper 모델 -------------------------------
-# 모델 로드 코드 및 함수 작성
+#---------------------------- Whisper + VAD 모델 -------------------------------
+WHISPER_MODEL = "DragonJae/Whisper_FineTuning_Ko_Stagewise"
+SR = 16000
+CHUNK_SEC = 1.0
+SAMPLES = int(SR * CHUNK_SEC)
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+whisper_processor = AutoProcessor.from_pretrained(WHISPER_MODEL)
+whisper_model = AutoModelForSpeechSeq2Seq.from_pretrained(WHISPER_MODEL).to(DEVICE).eval()
+
+# Silero VAD 로드
+silero_model, utils = torch.hub.load('snakers4/silero-vad', 'silero_vad', force_reload=False)
+get_speech_timestamps, _, _, _, _ = utils
 
 #--------------------------- 자살 위험도 예측 모델 -----------------------------------------------
 tokenizer = AutoTokenizer.from_pretrained("seungb1027/koelectra-suicide-risk")
@@ -44,6 +57,54 @@ def predict_label(text):
         probs = F.softmax(outputs.logits, dim=-1)
         label = torch.argmax(probs, dim=-1).item()
     return label  # 0 / 1 / 2
+
+#------------------------------ 음성 인식 및 위험도 예측 실행 --------------------------------------------
+def audio_loop():
+    q = queue.Queue()
+    buff = np.zeros(0, dtype=np.float32)
+    collected_texts = []
+
+    def audio_callback(indata, frames, t, status):
+        if status:
+            print(status)
+        q.put(indata.squeeze().copy())
+
+    duration_sec = 5
+    print(f"5초간 음성을 듣고 텍스트를 분석합니다…")
+    
+    with sd.InputStream(channels=1, samplerate=SR, blocksize=SAMPLES, callback=audio_callback):
+        start_time = time.time()
+        print("5초간 음성을 듣는 중…")
+
+        while time.time() - start_time < duration_sec:
+            if not q.empty():
+                buff = np.concatenate([buff, q.get()])
+
+    # 5초 분량의 전체 오디오 누적 후 Whisper 처리
+    audio_tensor = torch.from_numpy(buff).to(torch.float32).cpu()
+    timestamps = get_speech_timestamps(audio_tensor, silero_model, sampling_rate=SR)
+    if not timestamps:
+        print("음성이 감지되지 않았습니다.")
+        return
+
+    # Whisper 입력
+    feats = whisper_processor(audio_tensor, sampling_rate=SR, return_tensors="pt").to(DEVICE)
+    with torch.no_grad():
+        pred = whisper_model.generate(feats.input_features, max_length=448)
+    text = whisper_processor.batch_decode(pred, skip_special_tokens=True)[0]
+
+    print(f"\n인식된 전체 문장:\n\"{text}\"")
+    label = predict_label(text)
+    risk_str = ["낮음", "중간", "높음"][label]
+    print(f"자살 위험도 예측 결과: {risk_str} ({label})")
+
+# --------------------------- 음성 인식 및 위험도 예측 호출 --------------------------------------------
+def run_live_prediction():
+    audio_loop()
+
+if __name__ == "__main__":
+    run_live_prediction()
+
 # ----------------------------- DB 연결 함수 -----------------------------
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
