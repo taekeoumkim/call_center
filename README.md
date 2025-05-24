@@ -126,6 +126,17 @@ python run.py
 # 서버는 기본적으로 http://localhost:5000 에서 실행됩니다.
 ```
 
+**3. Frontend 설정 및 실행:**
+
+```bash
+# 1. 의존성 설치
+cd call_center_project/frontend
+npm install
+
+# 2. React 앱 실행
+npm start
+# http://localhost:3000 에서 React 앱이 실행됩니다.
+```
 
 ## 👨‍💻 팀원 (Team Members)
 
