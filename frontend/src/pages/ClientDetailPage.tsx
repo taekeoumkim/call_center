@@ -140,96 +140,113 @@ const ClientDetailPage = () => {
   if (!client) return <div className="p-6">로딩 중...</div>;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      {/* 상단 타이틀 */}
-      <h2 className="text-2xl font-bold mb-6">
-        {counselorName} 상담사님 - 내담자 소견서 작성
-      </h2>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center font-sans px-4 py-8">
+      <main className="w-full max-w-xl bg-white p-8 rounded-3xl shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <h2 className="text-2xl font-bold text-center text-blue-800 mb-6 tracking-tight">
+          {counselorName} 상담사님 - 내담자 소견서 작성
+        </h2>
 
-      {/* 소견서 작성 폼 */}
-      <div className="bg-gray-50 p-6 rounded-xl shadow-md border space-y-4">
+        {/* 소견서 작성 폼 */}
+        <div className="space-y-6">
+          {/* 이름 입력 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">이름</label>
+            <input
+              type="text"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+              placeholder="내담자 이름 입력"
+            />
+          </div>
 
-        {/* 이름 입력 */}
-        <div>
-          <label className="block font-semibold mb-1">이름</label>
-          <input
-            type="text"
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-          />
-        </div>
+          {/* 나이 입력 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">나이</label>
+            <input
+              type="number"
+              name="age"
+              value={form.age}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+              placeholder="내담자 나이 입력"
+            />
+          </div>
 
-        {/* 나이 입력 */}
-        <div>
-          <label className="block font-semibold mb-1">나이</label>
-          <input
-            type="number"
-            name="age"
-            value={form.age}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-          />
-        </div>
+          {/* 성별 선택 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">성별</label>
+            <div className="flex space-x-4">
+              {['남성', '여성'].map((g) => (
+                <label key={g} className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={g}
+                    checked={form.gender === g}
+                    onChange={handleChange}
+                    className="accent-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">{g}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
-        {/* 성별 선택 */}
-        <div>
-          <label className="block font-semibold mb-1">성별</label>
-          <div className="flex space-x-4">
-            {['남성', '여성'].map((g) => (
-              <label key={g}>
-                <input
-                  type="radio"
-                  name="gender"
-                  value={g}
-                  checked={form.gender === g}
-                  onChange={handleChange}
-                />
-                <span className="ml-1">{g}</span>
-              </label>
-            ))}
+          {/* 전화번호 표시 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">전화번호</label>
+            <div className="px-4 py-3 border border-blue-100 rounded-xl bg-gray-100 text-sm text-gray-700">
+              {client.phone}
+            </div>
+          </div>
+
+          {/* 자살위험도 표시 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">자살위험도</label>
+            <div className="flex items-center space-x-3 px-4 py-3 border border-blue-100 rounded-xl bg-gray-100">
+              <span className={`w-4 h-4 rounded-full ${riskColors[client.risk]}`} />
+              <span className="text-sm text-gray-700">{riskLabels[client.risk]}</span>
+            </div>
+          </div>
+
+          {/* 상담 메모 */}
+          <div>
+            <label className="block text-sm font-semibold text-blue-800 mb-1">상담 메모</label>
+            <textarea
+              name="note"
+              value={form.note}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm h-32 resize-none"
+              placeholder="상담 중 느낀 점이나 주요 내용을 작성해주세요"
+            />
+          </div>
+
+          {/* 저장 & 취소 버튼 */}
+          <div className="pt-4 space-y-3">
+            <button
+              onClick={handleSave}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm"
+            >
+              저장
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl shadow-sm transition-all duration-200 text-sm"
+            >
+              취소
+            </button>
           </div>
         </div>
+      </main>
 
-        {/* 전화번호 표시 (수정 불가) */}
-        <div>
-          <label className="block font-semibold mb-1">전화번호</label>
-          <div className="p-2 border rounded bg-gray-100">{client.phone}</div>
-        </div>
-
-        {/* 자살위험도 표시 (수정 불가) */}
-        <div>
-          <label className="block font-semibold mb-1">자살위험도</label>
-          <div className="flex items-center space-x-2 p-2 border rounded bg-gray-100">
-            <span className={`w-4 h-4 rounded-full ${riskColors[client.risk]}`} />
-            <span>{riskLabels[client.risk]}</span>
-          </div>
-        </div>
-
-        {/* 상담 메모 입력 */}
-        <div>
-          <label className="block font-semibold mb-1">상담 메모</label>
-          <textarea
-            name="note"
-            value={form.note}
-            onChange={handleChange}
-            className="w-full h-32 border p-2 rounded"
-          />
-        </div>
-
-        {/* 저장 버튼 */}
-        <div className="text-center pt-4">
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700"
-          >
-            저장
-          </button>
-        </div>
-      </div>
+      <footer className="text-xs text-gray-400 mt-8 mb-4">
+        © 2025 Call Center. All rights reserved.
+      </footer>
     </div>
   );
+
 };
 
 export default ClientDetailPage;
