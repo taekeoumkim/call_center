@@ -129,6 +129,9 @@ const ClientDetailPage = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // 저장 성공 메시지
+      alert('저장되었습니다.');
+
       // 메인 페이지로 이동
       navigate('/main');
     } catch (err) {
