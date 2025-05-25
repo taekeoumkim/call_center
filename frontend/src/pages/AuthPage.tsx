@@ -99,96 +99,87 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen pt-[150px] bg-gray-100">
-      {/* 상단 로고 및 앱 타이틀 */}
-      <div className="flex items-center justify-center mb-6">
-        <img
-          src={LogoImg}
-          alt="Logo"
-          className="w-10 h-10 rounded-full object-cover mr-3"
-        />
-        <h1 className="text-3xl font-bold text-blue-500">Call Center</h1>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center font-sans">
+      {/* 상단 헤더 */}
+      <header className="w-full bg-white shadow-md flex items-center px-6 py-2.5">
+        <img src={LogoImg} alt="로고" className="h-8 w-8 rounded-full mr-2" />
+        <h1 className="text-xl font-semibold text-blue-800 tracking-tight">Call Center</h1>
+      </header>
 
-      {/* 로그인/회원가입 폼 */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md space-y-4"
-      >
-        {/* 폼 제목 */}
-        <h2 className="text-2xl font-bold text-center">
-          {isLoginMode ? '로그인' : '회원가입'}
+      {/* 로그인/회원가입 카드 */}
+      <main className="w-full max-w-md mt-16 bg-white p-10 rounded-3xl shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <h2 className="text-3xl font-bold text-center text-blue-800 mb-4">
+          {isLoginMode ? '상담사 로그인' : '상담사 회원가입'}
         </h2>
 
-        {/* 이름 입력 필드 (회원가입 시에만 표시) */}
-        {!isLoginMode && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLoginMode && (
+            <input
+              type="text"
+              name="name"
+              placeholder="이름"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+              required
+            />
+          )}
+
           <input
             type="text"
-            name="name"
-            placeholder="이름"
-            value={formData.name}
+            name="username"
+            placeholder="아이디"
+            value={formData.username}
             onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
+            className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
             required
           />
-        )}
 
-        {/* 아이디 입력 필드 */}
-        <input
-          type="text"
-          name="username"
-          placeholder="아이디"
-          value={formData.username}
-          onChange={handleChange}
-          className="w-full p-2 border rounded-lg"
-          required
-        />
-
-        {/* 비밀번호 입력 필드 */}
-        <input
-          type="password"
-          name="password"
-          placeholder="비밀번호"
-          value={formData.password}
-          onChange={handleChange}
-          className="w-full p-2 border rounded-lg"
-          required
-        />
-
-        {/* 비밀번호 확인 입력 필드 (회원가입 시에만 표시) */}
-        {!isLoginMode && (
           <input
             type="password"
-            name="confirmPassword"
-            placeholder="비밀번호 확인"
-            value={formData.confirmPassword}
+            name="password"
+            placeholder="비밀번호"
+            value={formData.password}
             onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
+            className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
             required
           />
-        )}
 
-        {/* 에러 메시지 출력 */}
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+          {!isLoginMode && (
+            <input
+              type="password"
+              name="confirmPassword"
+              placeholder="비밀번호 확인"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+              required
+            />
+          )}
 
-        {/* 로그인/회원가입 버튼 */}
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600"
-        >
-          {isLoginMode ? '로그인' : '회원가입'}
-        </button>
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
-        {/* 로그인/회원가입 모드 전환 링크 */}
-        <p
-          className="text-sm text-center text-gray-600 cursor-pointer hover:underline"
-          onClick={() => setIsLoginMode(!isLoginMode)}
-        >
-          {isLoginMode
-            ? '계정이 없으신가요? 회원가입'
-            : '이미 계정이 있으신가요? 로그인'}
-        </p>
-      </form>
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm"
+          >
+            {isLoginMode ? '로그인' : '회원가입'}
+          </button>
+
+          <p
+            className="text-sm text-center text-blue-600 cursor-pointer hover:underline"
+            onClick={() => setIsLoginMode(!isLoginMode)}
+          >
+            {isLoginMode
+              ? '계정이 없으신가요? 회원가입'
+              : '이미 계정이 있으신가요? 로그인'}
+          </p>
+        </form>
+      </main>
+
+      <footer className="text-xs text-gray-400 mt-8 mb-4">
+        © 2025 Call Center. All rights reserved.
+      </footer>
     </div>
   );
 };
