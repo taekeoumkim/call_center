@@ -163,14 +163,14 @@ const MainPage = () => {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen p-8">
-      {/* 상단 바 (로고 + 마이페이지/로그아웃) */}
-      <header className="flex justify-between items-center mb-12">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white font-sans flex flex-col items-center">
+      {/* Header */}
+      <header className="w-full bg-white shadow-md flex justify-between items-center px-4 sm:px-6 py-3">
         <div className="flex items-center gap-3">
-          <img src={LogoImg} alt="logo" className="w-10 h-10" />
-          <h1 className="text-2xl font-bold text-gray-800">Call Center</h1>
+          <img src={LogoImg} alt="로고" className="h-8 w-8 rounded-full" />
+          <h1 className="text-xl font-semibold text-blue-800 tracking-tight">Call Center</h1>
         </div>
-        <div className="flex gap-6">
+        <div className="flex gap-4 sm:gap-6 text-sm">
           <button onClick={() => navigate('/mypage')} className="text-gray-600 hover:text-blue-600 transition">
             마이페이지
           </button>
@@ -179,77 +179,84 @@ const MainPage = () => {
           </button>
         </div>
       </header>
-
-      {/* 상담 박스 */}
-      <section className="flex justify-center mb-12">
-        <div className="bg-blue-100 p-10 rounded-2xl shadow-xl text-center w-full max-w-lg">
+  
+      {/* Main Container */}
+      <main className="w-full max-w-screen-xl min-h-[70vh] mt-10 sm:mt-16 bg-white p-6 sm:p-10 lg:p-12 rounded-3xl shadow-2xl transition-all duration-300 hover:shadow-3xl">
+        {/* 상담 박스 */}
+        <section className="text-center mb-12 sm:mb-16">
           {counselorName && (
-            <div className="text-xl font-semibold mb-2">
-              {counselorName} 상담사님
-            </div>
+            <p className="text-base sm:text-xl font-semibold text-blue-800 mb-2">
+              👩‍⚕️ {counselorName} 상담사님
+            </p>
           )}
-          <h2 className="text-2xl font-bold mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-blue-800 mb-6 tracking-tight">
             {isConsulting ? '상담 중입니다' : '상담을 시작해주세요'}
           </h2>
           <button
             onClick={handleToggleConsulting}
-            className={`px-8 py-3 text-white font-medium rounded-xl shadow-md transition duration-200 ${
-              isConsulting ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
+            className={`px-8 sm:px-10 py-3 sm:py-4 text-base sm:text-lg font-semibold text-white rounded-full shadow-md transition-all duration-200 ${
+              isConsulting
+                ? 'bg-red-500 hover:bg-red-600 animate-pulse ring-2 ring-red-300'
+                : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
             {isConsulting ? '상담 종료' : '상담 시작'}
           </button>
-        </div>
-      </section>
-
-      {/* 내담자 대기열 목록 */}
-      <section>
-        <div className="flex items-center mb-4">
-          <h3 className="text-xl font-bold text-gray-800 mr-2">내담자 대기열</h3>
-          <button
-            onClick={() => {
-              if (window.confirm('정말 대기열을 리셋 하시겠습니까?')) {
-                resetQueue();
-              }
-            }}
-            className="text-sm px-4 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition"
-          >
-            리셋
-          </button>
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={scrollLeft}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-3xl text-gray-400 hover:text-gray-700 px-2"
-          >
-            ◀
-          </button>
-
-          <div
-            ref={scrollRef}
-            className="mx-10 flex overflow-x-auto gap-5 py-3 scrollbar-hide"
-          >
-            {clients.map((client) => (
-              <div
-                key={client.id}
-                onClick={() => navigate(`/patient/${client.id}`)}
-                className={`min-w-[220px] bg-white border-t-4 ${riskColors[client.risk]} rounded-xl shadow-md p-5 cursor-pointer hover:shadow-lg hover:scale-105 transition`}
-              >
-                <div className="font-semibold mb-2 text-gray-800">{riskLabels[client.risk]}</div>
-                <div className="text-sm text-gray-500">전화번호: {client.phone}</div>
-              </div>
-            ))}
+        </section>
+  
+        {/* 내담자 대기열 */}
+        <section>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3 sm:gap-0">
+            <h3 className="text-xl sm:text-2xl font-bold text-blue-800">내담자 대기열</h3>
+            <button
+              onClick={() => {
+                if (window.confirm('정말 대기열을 리셋 하시겠습니까?')) {
+                  resetQueue();
+                }
+              }}
+              className="text-sm px-4 py-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
+            >
+              대기열 리셋
+            </button>
           </div>
-
-          <button
-            onClick={scrollRight}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 text-3xl text-gray-400 hover:text-gray-700 px-2"
-          >
-            ▶
-          </button>
-        </div>
-      </section>
+  
+          <div className="relative">
+            <button
+              onClick={scrollLeft}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 text-2xl sm:text-3xl text-gray-400 hover:text-gray-700 px-2"
+            >
+              ◀
+            </button>
+  
+            <div
+              ref={scrollRef}
+              className="px-4 sm:px-6 flex overflow-x-auto gap-6 py-3 scrollbar-hide"
+            >
+              {clients.map((client) => (
+                <div
+                  key={client.id}
+                  onClick={() => navigate(`/patient/${client.id}`)}
+                  className={`min-w-[240px] bg-blue-50 border-t-4 ${riskColors[client.risk]} rounded-xl shadow-md p-5 cursor-pointer hover:shadow-lg hover:scale-105 transition`}
+                >
+                  <div className="font-semibold text-blue-800 mb-1">{riskLabels[client.risk]}</div>
+                  <div className="text-sm text-gray-600">📞 {client.phone}</div>
+                </div>
+              ))}
+            </div>
+  
+            <button
+              onClick={scrollRight}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 text-2xl sm:text-3xl text-gray-400 hover:text-gray-700 px-2"
+            >
+              ▶
+            </button>
+          </div>
+        </section>
+      </main>
+  
+      <footer className="text-xs text-gray-400 mt-8 mb-4 text-center px-4">
+        © 2025 Call Center. All rights reserved.
+      </footer>
     </div>
   );
 };
