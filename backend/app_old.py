@@ -396,7 +396,7 @@ def save_report():
     phone = data.get('phone')
     risk = data.get('risk')
 
-    if not all([client_id, name, age, gender, memo, phone, risk]):
+    if any(v is None for v in [client_id, name, age, gender, memo, phone, risk]):
         return jsonify({'error': '모든 항목을 입력해주세요.'}), 400
 
     conn = get_db_connection()
