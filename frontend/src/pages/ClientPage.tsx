@@ -16,7 +16,7 @@ const ClientPage: React.FC = () => {
     if (isRecording) {
       timerRef.current = setInterval(() => {
         setRecordingTime((prev) => {
-          if (prev >= MAX_RECORDING_TIME) return prev; // 초과 증가 방지
+          if (prev >= MAX_RECORDING_TIME) return prev;
           return prev + 1;
         });
       }, 1000);
@@ -139,65 +139,69 @@ const ClientPage: React.FC = () => {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50 flex flex-col items-center'>
-      <header className='w-full bg-white shadow flex items-center px-6 py-3'>
-        <img src={LogoImg} alt='로고' className='h-10 w-10 rounded-full mr-3' />
-        <h1 className='text-xl font-bold text-gray-800'>Call Center</h1>
+    <div className='min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center font-sans'>
+      <header className='w-full bg-white shadow-md flex items-center px-6 py-2.5'>
+        <img src={LogoImg} alt='로고' className='h-8 w-8 rounded-full mr-2' />
+        <h1 className='text-xl font-semibold text-blue-800 tracking-tight'>Call Center</h1>
       </header>
-
-      <main className='w-full max-w-lg mt-10 bg-white p-6 rounded-xl shadow-md'>
-        <h2 className='text-2xl font-semibold text-center text-gray-800 mb-2'>
-          내담자 페이지
-        </h2>
-        <p className='text-center text-gray-600 mb-6'>
-          버튼을 누르고 현재 상황을 말씀해 주세요
+  
+      <main className='w-full max-w-lg mt-12 bg-white p-10 rounded-3xl shadow-xl transition-all duration-300 hover:shadow-2xl'>
+        <h2 className='text-3xl font-bold text-center text-blue-800 mb-2 tracking-tight'>내담자 상담</h2>
+        <p className='text-center text-gray-600 mb-8 text-sm'>
+          버튼을 눌러 현재 상황을 말씀해주세요.
         </p>
-
-        <div className='flex justify-center mb-4'>
+  
+        <div className='flex justify-center mb-6'>
           <button
             onClick={handleRecordToggle}
-            className={`px-6 py-3 rounded-full font-semibold shadow transition-all duration-200 ${
+            className={`flex items-center justify-center gap-2 w-44 py-3 rounded-full font-medium text-lg shadow-md transition-all duration-300 ${
               isRecording
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-green-600 hover:bg-green-700'
+                ? 'bg-red-500 hover:bg-red-600 animate-pulse ring-2 ring-red-300'
+                : 'bg-green-500 hover:bg-green-600'
             } text-white`}
           >
-            🎙️ {isRecording ? '녹음 중지' : '녹음 시작'}
+            🎙️ {isRecording ? '중지하기' : '녹음 시작'}
           </button>
         </div>
-
-        <p className='text-center text-lg mb-4'>
-          ⏱️ 녹음 시간: <span className='font-mono'>{recordingTime}s / {MAX_RECORDING_TIME}s</span>
-        </p>
-
+  
+        <div className='text-center text-blue-700 text-sm mb-6'>
+          <span className='inline-block px-4 py-1 bg-blue-100 rounded-full font-mono'>
+            ⏱ {recordingTime}s / {MAX_RECORDING_TIME}s
+          </span>
+        </div>
+  
         {audioBlob && (
-          <div className='mb-6 text-center'>
-            <p className='mb-2 text-gray-700 font-medium'>
-              🔊 녹음된 내용 듣기
-            </p>
-            <audio controls className='w-full'>
-              <source src={URL.createObjectURL(audioBlob)} type='audio/webm' />
-              브라우저가 오디오 태그를 지원하지 않습니다.
-            </audio>
+          <div className='mb-6'>
+            <div className='border border-blue-200 p-4 rounded-xl shadow-sm bg-blue-50'>
+              <p className='mb-2 text-blue-700 font-semibold text-sm text-center'>🔊 녹음된 음성</p>
+              <audio controls className='w-full'>
+                <source src={URL.createObjectURL(audioBlob)} type='audio/webm' />
+                브라우저가 오디오를 지원하지 않습니다.
+              </audio>
+            </div>
           </div>
         )}
-
+  
         <input
           type='tel'
-          placeholder='전화번호 (예: 010-1234-5678)'
+          placeholder='전화번호 입력: 010-0000-0000'
           value={phoneNumber}
           onChange={handlePhoneChange}
           maxLength={13}
-          className='w-full border border-gray-300 rounded-md px-4 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400'
+          className='w-full border border-blue-200 rounded-xl px-4 py-3 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm'
         />
-
+  
         <button
           onClick={handleSubmit}
-          className='w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-md shadow transition-all duration-200'
+          className='w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm'
         >
-          제출
+          상담 요청하기
         </button>
       </main>
+  
+      <footer className='text-xs text-gray-400 mt-8 mb-4'>
+        © 2025 Call Center. All rights reserved.
+      </footer>
     </div>
   );
 };
