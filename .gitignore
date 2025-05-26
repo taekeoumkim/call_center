@@ -72,6 +72,9 @@ frontend/yarn-error.log*
 
 # Byte-compiled / optimized / DLL files
 backend/__pycache__/
+backend/app/__pycache__/
+backend/app/routes/__pycache__/
+backend/app/services/__pycache__/
 backend/*.py[cod]
 backend/*$py.class
 
@@ -127,6 +130,7 @@ backend/*.pot
 
 # Flask stuff
 backend/instance/ # Includes app.db and uploads/ by default
+backend/instance/uploads/
 # backend/instance/app.db # If you want to ignore instance/ but keep some files
 # backend/instance/uploads/ # This is covered by backend/instance/
 .webassets-cache # If used at backend root

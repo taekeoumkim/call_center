@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from .services import ai_service
 
 db = SQLAlchemy()
 migrate = Migrate()
@@ -19,6 +20,17 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "http://localhost:3000"}})
     jwt.init_app(app)
+
+    # --- AI 모델 로드 ---
+    # create_app 호출 시 로드하도록 함
+    try:
+        print("Attempting to load AI models...")
+        ai_service.load_models() # <<< AI 모델 로드 함수 호출
+        print("AI models loaded (or were already loaded).")
+    except Exception as e:
+        app.logger.error(f"Failed to load AI models on startup: {e}") # Flask 로거 사용
+        # 모델 로드 실패 시 애플리케이션을 중단할지, 아니면 경고만 하고 계속할지 결정 필요
+
 
     # 순환참조를 막기위해 db.init_app(db 초기화) 이후에 모델 임포트
     from . import models

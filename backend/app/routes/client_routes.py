@@ -1,11 +1,12 @@
 # backend/app/routes/client_routes.py
 from flask import Blueprint, request, jsonify
-import os # 파일 저장을 위해
-import random # 임시 위험도 할당을 위해
-from werkzeug.utils import secure_filename # 안전한 파일명 처리를 위해
+import os
+import random
+from werkzeug.utils import secure_filename
 from .. import db
 from ..models import ClientCall, User
-from ..config import Config # 파일 저장 경로 등을 위해 Config 임포트 (선택 사항)
+from ..config import Config
+from ..services import ai_service
 
 client_bp = Blueprint('client', __name__)
 
@@ -40,51 +41,50 @@ def submit_client_data():
         audio_file_path = os.path.join(UPLOAD_FOLDER, filename)
         audio_file.save(audio_file_path)
 
-        # 1. 상담 가능한 상담사 찾기 (가장 대기열이 적은 상담사 - 초기엔 랜덤 또는 첫번째 상담사)
-        #    AI 모델이 없으므로 위험도는 랜덤으로 배정
-        risk_level = random.choice([1, 2, 3]) # 1:낮음, 2:중간, 3:높음
+        # --- AI 모델을 사용하여 위험도 분석 ---
+        risk_level = ai_service.analyze_audio_risk(audio_file_path)
 
-        # 상담사 배정 로직 (초기 단순화 버전)
-        # 'available' 상태인 상담사를 찾아서 배정 (가장 대기열이 적은 순은 나중에 구현)
+        if risk_level is None:
+            # AI 분석 실패 시, 임시로 기본 위험도를 할당하거나 오류를 반환할 수 있음
+            # 여기서는 기본 위험도 0을 할당하고, 로그를 남기는 것을 고려
+            print(f"AI risk analysis failed for {audio_file_path}. Assigning default risk level 0.")
+            risk_level = 0 # 또는 오류 반환: return jsonify({'message': 'AI analysis failed'}), 500
+                           # 파일을 저장했으므로, 분석 실패 시에도 일단 DB에 기록할지 결정 필요
+
+        # 상담사 배정 로직
         available_counselors = User.query.filter_by(status='available').all()
         assigned_counselor = None
         if not available_counselors:
-            # 상담 가능한 상담사가 없으면 일단 대기 상태로만 저장하거나, 에러 반환
-            # 프론트 요구사항: "상담 대기 중인 상담사가 없다며 제출이 안된다."
-            # 임시로 음성 파일만 삭제하고 에러 반환
             if os.path.exists(audio_file_path):
-                os.remove(audio_file_path)
-            return jsonify({'message': 'No available counselors at the moment. Please try again later.'}), 503 # Service Unavailable
+                os.remove(audio_file_path) # 상담사 없으면 파일도 삭제
+            return jsonify({'message': 'No available counselors at the moment. Please try again later.'}), 503
 
-        # 실제로는 대기열 수 등을 고려해야 함. 여기서는 가장 간단하게 첫번째 상담사에게 배정.
-        # 또는 랜덤으로 배정할 수도 있음.
-        # assigned_counselor = random.choice(available_counselors) if available_counselors else None
-        # 상담사가 대기열 조회 후 담당할 내담자 결정 (추후 구현)
-        # 지금은 일단 첫 번째 상담사로 가정
-        assigned_counselor = available_counselors[0]
+        # TODO: 가장 대기열이 적은 상담사에게 배정하는 로직 고도화 필요
+        assigned_counselor = available_counselors[0] if available_counselors else None
 
 
         new_call = ClientCall(
             phone_number=phone_number,
             audio_file_path=audio_file_path, # DB에는 상대경로나 전체경로 저장
-            risk_level=risk_level,
-            status='pending', # 또는 'assigned'
+            risk_level=risk_level, # <<< AI가 분석한 위험도
+            status='pending',
             assigned_counselor_id=assigned_counselor.id if assigned_counselor else None
         )
         try:
             db.session.add(new_call)
             db.session.commit()
+            # AI 분석 실패 시 파일은 이미 저장되었고, DB에도 기록됨 (기본 위험도로)
+            # 성공/실패 여부에 따라 프론트에 다른 메시지를 줄 수도 있음
             return jsonify({
-                'message': 'Call data submitted successfully and assigned.',
+                'message': 'Call data submitted successfully.',
                 'call_id': new_call.id,
-                'risk_level': risk_level,
+                'risk_level': risk_level, # 분석된 (또는 기본) 위험도
                 'assigned_counselor_id': assigned_counselor.id if assigned_counselor else None
             }), 201
         except Exception as e:
             db.session.rollback()
-            # 실패 시 저장된 오디오 파일도 삭제
-            if os.path.exists(audio_file_path):
+            if os.path.exists(audio_file_path): # DB 저장 실패 시 파일 삭제
                 os.remove(audio_file_path)
-            return jsonify({'message': 'Failed to submit call data', 'error': str(e)}), 500
+            return jsonify({'message': 'Failed to submit call data after analysis', 'error': str(e)}), 500
     else:
         return jsonify({'message': 'File type not allowed or no file'}), 400
