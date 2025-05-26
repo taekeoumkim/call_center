@@ -1,6 +1,7 @@
 # backend/app/config.py
 import os
 from datetime import timedelta
+import logging
 
 class Config:
     # basedir를 Config 클래스의 클래스 변수로 정의

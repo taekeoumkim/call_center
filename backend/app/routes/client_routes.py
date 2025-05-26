@@ -1,18 +1,18 @@
 # backend/app/routes/client_routes.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import os
-import random
+import uuid
 from werkzeug.utils import secure_filename
+from sqlalchemy import func
 from .. import db
 from ..models import ClientCall, User
-from ..config import Config
 from ..services import ai_service
+from ..config import Config
 
 client_bp = Blueprint('client', __name__)
 
-# 파일 업로드 설정 (선택 사항: Config 클래스에서 관리 가능)
 UPLOAD_FOLDER = Config.UPLOAD_FOLDER
-ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'} # 허용할 오디오 확장자
+ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -23,11 +23,10 @@ def allowed_file(filename):
 
 @client_bp.route('/submit', methods=['POST'])
 def submit_client_data():
-    # 프론트엔드에서 form-data로 음성 파일과 전화번호를 보낸다고 가정
     if 'audio' not in request.files:
         return jsonify({'message': 'No audio file part'}), 400
     audio_file = request.files['audio']
-    phone_number = request.form.get('phoneNumber') # 폼 데이터에서 전화번호 추출
+    phone_number = request.form.get('phoneNumber')
 
     if not phone_number:
         return jsonify({'message': 'Phone number is required'}), 400
@@ -35,56 +34,105 @@ def submit_client_data():
         return jsonify({'message': 'No selected audio file'}), 400
 
     if audio_file and allowed_file(audio_file.filename):
-        filename = secure_filename(audio_file.filename) # 안전한 파일 이름 사용
-        # 파일명 중복 방지를 위해 타임스탬프나 UUID 추가 권장
-        import uuid; filename = str(uuid.uuid4()) + "_" + filename
-        audio_file_path = os.path.join(UPLOAD_FOLDER, filename)
+        original_filename = secure_filename(audio_file.filename)
+        unique_filename = str(uuid.uuid4()) + "_" + original_filename
+        audio_file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
         audio_file.save(audio_file_path)
+        current_app.logger.info(f"Audio file saved to: {audio_file_path}")
 
-        # --- AI 모델을 사용하여 위험도 분석 ---
         risk_level = ai_service.analyze_audio_risk(audio_file_path)
 
         if risk_level is None:
-            # AI 분석 실패 시, 임시로 기본 위험도를 할당하거나 오류를 반환할 수 있음
-            # 여기서는 기본 위험도 0을 할당하고, 로그를 남기는 것을 고려
-            print(f"AI risk analysis failed for {audio_file_path}. Assigning default risk level 0.")
-            risk_level = 0 # 또는 오류 반환: return jsonify({'message': 'AI analysis failed'}), 500
-                           # 파일을 저장했으므로, 분석 실패 시에도 일단 DB에 기록할지 결정 필요
+            current_app.logger.error(f"AI risk analysis failed for {audio_file_path}. Assigning default risk level 0.")
+            risk_level = 0
+        else:
+            current_app.logger.info(f"AI risk analysis completed for {audio_file_path}. Risk level: {risk_level}")
 
-        # 상담사 배정 로직
+        # --- 상담사 배정 로직 ---
+        assigned_counselor_id = None
+
+        # 1. 'available' 상태인 상담사 목록 가져오기
         available_counselors = User.query.filter_by(status='available').all()
-        assigned_counselor = None
+
         if not available_counselors:
             if os.path.exists(audio_file_path):
-                os.remove(audio_file_path) # 상담사 없으면 파일도 삭제
+                os.remove(audio_file_path)
             return jsonify({'message': 'No available counselors at the moment. Please try again later.'}), 503
 
-        # TODO: 가장 대기열이 적은 상담사에게 배정하는 로직 고도화 필요
-        assigned_counselor = available_counselors[0] if available_counselors else None
+        # 2. 각 상담사별 현재 활성 대기열 수 계산
+        # ClientCall 테이블에서 'pending' 또는 'assigned' 상태인 통화 수를 상담사별로 집계
+        # 결과: [(counselor_id, count), (counselor_id, count), ...]
+        # SQLAlchemy의 func.count와 group_by를 사용
+        subquery = db.session.query(
+            ClientCall.assigned_counselor_id,
+            func.count(ClientCall.id).label('active_calls')
+        ).filter(
+            ClientCall.status.in_(['pending', 'assigned']) # 활성 상태로 간주할 상태들
+        ).group_by(
+            ClientCall.assigned_counselor_id
+        ).subquery()
+
+        # 상담사 정보와 그들의 활성 통화 수를 조인 (LEFT JOIN 사용)
+        # 결과: [(User 객체, active_calls_count 또는 None), ...]
+        counselor_call_counts_query = db.session.query(
+            User,
+            subquery.c.active_calls
+        ).outerjoin(
+            subquery, User.id == subquery.c.assigned_counselor_id
+        ).filter(
+            User.status == 'available' # 다시 한번 'available' 상태 필터링
+        )
+        
+        counselors_with_counts = []
+        for user, count in counselor_call_counts_query.all():
+            active_calls = count if count is not None else 0 # 집계 결과가 없는 상담사는 0건
+            counselors_with_counts.append({'user': user, 'active_calls': active_calls})
+
+        if not counselors_with_counts:
+            if os.path.exists(audio_file_path):
+                os.remove(audio_file_path)
+            return jsonify({'message': 'Failed to determine counselor availability for assignment.'}), 500
+
+
+        # 3 & 4. 대기열 수가 가장 적은 상담사 찾기 (같을 경우 ID가 낮은 순)
+        # active_calls 기준으로 오름차순 정렬, 그 다음 user.id 기준으로 오름차순 정렬
+        counselors_with_counts.sort(key=lambda x: (x['active_calls'], x['user'].id))
+
+        # 가장 적합한 상담사 선택
+        if counselors_with_counts: # 정렬된 리스트에서 첫 번째 상담사가 가장 적합
+            assigned_counselor_id = counselors_with_counts[0]['user'].id
+            current_app.logger.info(f"Assigned to counselor ID: {assigned_counselor_id} with {counselors_with_counts[0]['active_calls']} active calls.")
+        else:
+            # 이 경우는 available_counselors는 있었지만, 어떤 이유로 최종 배정할 상담사를 찾지 못한 경우
+            # (이론상으로는 available_counselors가 있다면 이 분기에 도달하지 않아야 함)
+            current_app.logger.error("Could not assign to any available counselor after AI analysis.")
+            if os.path.exists(audio_file_path):
+                os.remove(audio_file_path)
+            return jsonify({'message': 'Could not assign to any available counselor.'}), 500
 
 
         new_call = ClientCall(
             phone_number=phone_number,
-            audio_file_path=audio_file_path, # DB에는 상대경로나 전체경로 저장
-            risk_level=risk_level, # <<< AI가 분석한 위험도
-            status='pending',
-            assigned_counselor_id=assigned_counselor.id if assigned_counselor else None
+            audio_file_path=audio_file_path,
+            risk_level=risk_level,
+            status='pending', # 초기 상태는 'pending', 상담사가 수락하면 'assigned' 등으로 변경 가능
+            assigned_counselor_id=assigned_counselor_id
         )
         try:
             db.session.add(new_call)
             db.session.commit()
-            # AI 분석 실패 시 파일은 이미 저장되었고, DB에도 기록됨 (기본 위험도로)
-            # 성공/실패 여부에 따라 프론트에 다른 메시지를 줄 수도 있음
+            current_app.logger.info(f"New call (ID: {new_call.id}) submitted and saved to DB.")
             return jsonify({
-                'message': 'Call data submitted successfully.',
+                'message': 'Call data submitted successfully and assigned.',
                 'call_id': new_call.id,
-                'risk_level': risk_level, # 분석된 (또는 기본) 위험도
-                'assigned_counselor_id': assigned_counselor.id if assigned_counselor else None
+                'risk_level': risk_level,
+                'assigned_counselor_id': assigned_counselor_id
             }), 201
         except Exception as e:
             db.session.rollback()
-            if os.path.exists(audio_file_path): # DB 저장 실패 시 파일 삭제
+            current_app.logger.error(f"Error saving new call to DB for {audio_file_path}")
+            if os.path.exists(audio_file_path):
                 os.remove(audio_file_path)
-            return jsonify({'message': 'Failed to submit call data after analysis', 'error': str(e)}), 500
+            return jsonify({'message': 'Failed to submit call data after assignment', 'error': str(e)}), 500
     else:
         return jsonify({'message': 'File type not allowed or no file'}), 400

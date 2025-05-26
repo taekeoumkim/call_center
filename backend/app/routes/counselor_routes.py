@@ -17,7 +17,7 @@ def update_counselor_status():
     if not new_status:
         return jsonify({'message': 'Status is required'}), 400
     
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     if not user:
         return jsonify({'message': 'User not found (from token)'}), 404
 
@@ -38,7 +38,7 @@ def update_counselor_status():
 @jwt_required()
 def get_counselor_queue():
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
+    user = db.session.get(User, current_user_id)
     if not user:
         return jsonify({'message': 'User not found (from token)'}), 404
 

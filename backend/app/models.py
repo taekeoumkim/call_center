@@ -9,7 +9,7 @@ class User(db.Model): # 예시 모델, 실제 모델명으로 대체
     password_hash = db.Column(db.String(128), nullable=False) # 해시된 비밀번호 저장
     name = db.Column(db.String(100), nullable=False)
     status = db.Column(db.String(20), default='offline', nullable=False) # 'offline', 'available', 'busy'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 비밀번호 설정 및 확인 메서드 (선택 사항이지만 권장)
     # def set_password(self, password):
@@ -32,7 +32,7 @@ class ClientCall(db.Model):
     risk_level = db.Column(db.Integer, default=0) # 0: unassigned, 1: low, 2: medium, 3: high
     status = db.Column(db.String(20), default='pending', nullable=False) # 'pending', 'assigned', 'completed'
     assigned_counselor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
-    received_at = db.Column(db.DateTime, default=datetime.utcnow)
+    received_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 관계 설정 (예: 이 통화에 배정된 상담사)
     # counselor = db.relationship('User', backref=db.backref('assigned_calls', lazy=True))
@@ -52,7 +52,7 @@ class ConsultationReport(db.Model):
     client_gender = db.Column(db.String(10)) # 'male', 'female', 'other'
     memo_text = db.Column(db.Text)
     risk_level_recorded = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 관계 설정
     # authoring_counselor = db.relationship('User', backref=db.backref('consultation_reports', lazy=True), foreign_keys=[counselor_id])
@@ -66,7 +66,7 @@ class TokenBlocklist(db.Model):
     __tablename__ = "token_blocklist"
     id = db.Column(db.Integer, primary_key=True)
     jti = db.Column(db.String(36), nullable=False, unique=True, index=True) # JWT ID
-    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)) # UTC 시간으로 저장
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<TokenBlocklist {self.jti}>"
