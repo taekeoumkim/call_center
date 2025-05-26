@@ -26,3 +26,7 @@ class Config:
     # JWT_HEADER_TYPE = 'Bearer' # 헤더 타입 (기본값: Bearer)
 
     JWT_VERIFY_SUB = False # 타입 유효성 검사 비활성화 (토큰 검증 시 사용)
+
+    # --- 로깅 설정 ---
+    LOG_LEVEL = logging.INFO # 기본 로그 레벨 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    # LOG_FILE_PATH = os.path.join(BASEDIR, 'instance', 'app.log') # 로그 파일 경로 (예시)
