@@ -25,7 +25,7 @@ DB_PATH = 'database.db'  # SQLite DB 파일 경로
 
 
 #---------------------------- Whisper + VAD 모델 -------------------------------
-WHISPER_MODEL = "DragonJae/Whisper_FineTuning_Ko_Stagewise"
+WHISPER_MODEL = "YongJaeLee/Whisper_FineTuning_Ko_Stagewise"
 SR = 16000
 CHUNK_SEC = 1.0
 SAMPLES = int(SR * CHUNK_SEC)
