@@ -10,7 +10,7 @@ from ..models import User, TokenBlocklist
 
 auth_bp = Blueprint('auth', __name__)
 
-@auth_bp.route('/signup', methods=['POST'])
+@auth_bp.route('/register', methods=['POST'])
 def signup():
     data = request.get_json()
     username = data.get('username')

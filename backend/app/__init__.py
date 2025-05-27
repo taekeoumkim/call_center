@@ -2,93 +2,87 @@
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory # send_from_directory 추가
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from werkzeug.exceptions import HTTPException
-from .services import ai_service
-from . import errors
+from .services import ai_service # services 폴더가 app 폴더 내에 있다고 가정
+from . import errors # errors.py (또는 errors 폴더)가 app 폴더 내에 있다고 가정
 
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
 
-from .config import Config
+# config.py가 app 폴더 내에 있다고 가정
+from .config import Config # config.py 임포트
+
+# --- 프론트엔드 빌드 디렉토리 경로 설정 ---
+# backend/app/__init__.py 파일 기준
+# app 폴더의 부모 디렉토리(backend)의 부모 디렉토리(프로젝트 루트) 아래 frontend/build
+APP_DIR = os.path.abspath(os.path.dirname(__file__)) # 현재 app 폴더
+BACKEND_DIR = os.path.dirname(APP_DIR) # backend 폴더
+PROJECT_ROOT_DIR = os.path.dirname(BACKEND_DIR) # 프로젝트 루트
+FRONTEND_BUILD_DIR = os.path.join(PROJECT_ROOT_DIR, 'frontend', 'build')
 
 def create_app(config_class=Config):
-    app = Flask(__name__, instance_relative_config=True)
+    # Flask 앱 인스턴스 생성 시 static_folder를 frontend/build/static으로 지정
+    app = Flask(__name__,
+                instance_relative_config=True,
+                static_folder=os.path.join(FRONTEND_BUILD_DIR, 'static') # React 빌드 static 폴더
+               )
     app.config.from_object(config_class)
 
     # --- 로깅 설정 ---
     if not app.debug and not app.testing:
-        # 로그 파일 경로 설정
-        log_dir = os.path.join(app.instance_path) # instance 폴더 사용
+        log_dir = os.path.join(app.instance_path)
         if not os.path.exists(log_dir):
-            os.makedirs(log_dir)
+            os.makedirs(log_dir, exist_ok=True) # exist_ok=True 추가
         log_file_path = app.config.get('LOG_FILE_PATH', os.path.join(log_dir, 'production.log'))
-
-        # 파일 핸들러 설정 (파일 크기 기반 로테이션)
         file_handler = RotatingFileHandler(
-            log_file_path,
-            maxBytes=1024 * 1024 * 10,  # 10MB
-            backupCount=5 # 최대 5개 백업 파일 유지
+            log_file_path, maxBytes=1024 * 1024 * 10, backupCount=5
         )
-        # 로그 포맷 설정
         log_formatter = logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
         )
         file_handler.setFormatter(log_formatter)
-
-        # 핸들러의 로그 레벨 설정
         file_handler.setLevel(app.config.get('LOG_LEVEL', logging.INFO))
-
-        # Flask 앱의 기본 로거 외에 다른 로거들도 이 핸들러를 사용하도록 할 수 있음
-        # 여기서는 앱의 기본 로거에 핸들러 추가
-        if not app.logger.handlers: # 기본 핸들러가 없는 경우에만 추가 (중복 방지)
+        if not app.logger.handlers:
              app.logger.addHandler(file_handler)
-
         app.logger.setLevel(app.config.get('LOG_LEVEL', logging.INFO))
         app.logger.info('Production-like logging initialized.')
-
-    elif app.debug: # 디버그 모드일 때는 콘솔에 더 상세한 로그가 나오도록
-        app.logger.setLevel(logging.DEBUG) # 디버그 모드에서는 DEBUG 레벨까지
+    elif app.debug:
+        app.logger.setLevel(logging.DEBUG)
         app.logger.info('Debug logging initialized.')
 
     db.init_app(app)
     migrate.init_app(app, db)
-    CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+    # CORS 설정은 프론트엔드 개발 서버(localhost:3000)와 통신 시 유용.
+    # Flask가 직접 프론트엔드를 서빙할 때는 같은 origin이므로 필수 아님. 그러나 유지해도 무방.
+    CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": app.config.get("CORS_ORIGINS", ["http://localhost:3000"]) }})
     jwt.init_app(app)
 
-    # --- 전역 에러 핸들러 등록 ---
-    # 모든 HTTP 예외를 errors.handle_http_exception 으로 처리
     app.register_error_handler(HTTPException, errors.handle_http_exception)
-
-    # 처리되지 않은 모든 예외 (Python 내장 Exception 포함)를 errors.handle_general_exception 으로 처리
-    # HTTPException을 상속하지 않는 예외들이 여기에 해당됨
     app.register_error_handler(Exception, errors.handle_general_exception)
 
-    # --- AI 모델 로드 ---
-    # create_app 호출 시 로드하도록 함
     try:
-        print("Attempting to load AI models...")
-        ai_service.load_models() # <<< AI 모델 로드 함수 호출
-        print("AI models loaded (or were already loaded).")
+        app.logger.info("Attempting to load AI models...") # Flask 로거 사용
+        ai_service.load_models()
+        app.logger.info("AI models loaded (or were already loaded).")
     except Exception as e:
-        app.logger.error(f"Failed to load AI models on startup: {e}") # Flask 로거 사용
-        # 모델 로드 실패 시 애플리케이션을 중단할지, 아니면 경고만 하고 계속할지 결정 필요
-
+        app.logger.error(f"Failed to load AI models on startup: {e}")
 
     # 순환참조를 막기위해 db.init_app(db 초기화) 이후에 모델 임포트
-    from . import models
+    from . import models # models.py (또는 models 폴더)가 app 폴더 내에 있다고 가정
 
     # --- JWT 콜백 함수들 (models 임포트 필요) ---
     @jwt.token_in_blocklist_loader
     def check_if_token_is_revoked(jwt_header, jwt_payload: dict):
         jti = jwt_payload["jti"]
+        # TokenBlocklist 모델이 models.py 안에 정의되어 있다고 가정
         token = models.TokenBlocklist.query.filter_by(jti=jti).one_or_none()
-        return token is not None # 토큰이 존재하면 True (블랙리스트에 있음)
+        return token is not None
 
     @jwt.revoked_token_loader
     def revoked_token_callback(jwt_header, jwt_payload: dict):
@@ -105,14 +99,32 @@ def create_app(config_class=Config):
     @jwt.unauthorized_loader
     def missing_token_callback(error_string):
         return jsonify({"message": "Request does not contain an access token.", "error": "authorization_required"}), 401
+
+    @jwt.additional_claims_loader
+    def add_claims_to_access_token(identity): # identity는 create_access_token에 전달된 값 (user.id)
+        user = models.User.query.get(identity) # models.User 사용
+        if user:
+            # 프론트엔드 DecodedToken { id: number; name: string; exp: number; } 등 필요한 정보 추가
+            return {
+                'name': user.name,
+                'id': user.id,
+                'username': user.username
+            }
+        return {}
+
+    @jwt.user_lookup_loader
+    def user_lookup_callback(_jwt_header, jwt_data):
+        identity = jwt_data["sub"] # "sub"는 create_access_token의 identity
+        return models.User.query.get(identity) # models.User 사용
     # --- JWT 콜백 함수들 끝 ---
 
-
     with app.app_context():
-        db.create_all()
-        print("Database tables created (if they didn't exist).")
+        # db.create_all() # Flask-Migrate를 사용
+        app.logger.info("Checked for database tables (db.create_all called).")
+
 
     # --- 블루프린트 등록 ---
+    # routes 폴더가 app 폴더 내에 있다고 가정
     from .routes.auth_routes import auth_bp
     from .routes.client_routes import client_bp
     from .routes.counselor_routes import counselor_bp
@@ -121,9 +133,28 @@ def create_app(config_class=Config):
     app.register_blueprint(client_bp, url_prefix='/api/client')
     app.register_blueprint(counselor_bp, url_prefix='/api/counselor')
 
-    # 애플리케이션 시작 시 로그
+
+    # --- 프론트엔드 앱 제공 라우트 (가장 마지막에 등록하는 것이 좋음) ---
+    # API 블루프린트 다음, 앱 반환 전에 위치해야 함.
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_react_app(path):
+        # 1. static 파일 요청인지 확인 (app.static_folder 에서 처리)
+
+        # 2. path가 FRONTEND_BUILD_DIR 내의 실제 파일/디렉토리를 가리키는지 확인
+        if path != "" and os.path.exists(os.path.join(FRONTEND_BUILD_DIR, path)):
+            return send_from_directory(FRONTEND_BUILD_DIR, path)
+        else:
+            # 3. React Router에 의해 처리되어야 하는 모든 다른 경로 (예: /main, /patient/1 등)
+            if os.path.exists(os.path.join(FRONTEND_BUILD_DIR, 'index.html')):
+                return send_from_directory(FRONTEND_BUILD_DIR, 'index.html')
+            else:
+                app.logger.error(f"Frontend index.html not found at {os.path.join(FRONTEND_BUILD_DIR, 'index.html')}")
+                return jsonify({"error": "React app index.html not found."}), 404
+    # --- 프론트엔드 앱 제공 라우트 끝 ---
+
     app.logger.info("Flask App Startup complete.")
     if app.debug:
         app.logger.info("Application is running in DEBUG mode.")
-    
+
     return app

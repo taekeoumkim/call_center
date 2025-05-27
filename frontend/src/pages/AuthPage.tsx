@@ -1,119 +1,185 @@
-// frontend/src/pages/AuthPage.tsx
-import React, { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom'; // 페이지 이동을 위해
-import { signup, login, User } from '../services/authService'; // 경로 확인
-import { useAuth } from '../context/AuthContext';
+// 상담사 로그인/회원가입 페이지
+import React, { useState } from 'react';
+import { loginCounselor, registerCounselor } from '../api/authApi'; // 인증 API 호출 함수 import
+import { useNavigate } from 'react-router-dom'; // 페이지 이동을 위한 hook
+import LogoImg from '../images/Logo.jpg'; // 로고 이미지 import
 
 const AuthPage: React.FC = () => {
-  const [isLogin, setIsLogin] = useState(true); // true: 로그인 폼, false: 회원가입 폼
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState(''); // 회원가입용 이름
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { login: contextLogin } = useAuth();
+  // 로그인 모드 여부 상태 (true = 로그인, false = 회원가입)
+  const [isLoginMode, setIsLoginMode] = useState(true);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  // 폼 입력값 상태 (이름, 아이디, 비밀번호 등)
+  const [formData, setFormData] = useState({
+    name: '',             // 상담사 이름
+    username: '',         // 아이디
+    password: '',         // 비밀번호
+    confirmPassword: '',  // 비밀번호 확인 (회원가입용)
+  });
+
+  // 에러 메시지 상태
+  const [error, setError] = useState('');
+
+  // 페이지 이동을 위한 훅
+  const navigate = useNavigate();
+
+  // 입력값 유효성 검사 함수 (회원가입 시에만 적용됨)
+  const validateInput = (): boolean => {
+    const { username, password, confirmPassword } = formData;
+
+    if (isLoginMode) {
+      // 로그인 모드일 경우 별도 유효성 검사 없이 통과
+      return true;
+    }
+
+    // 회원가입 모드일 경우 유효성 검사 진행
+    const usernameRegex = /^[a-zA-Z0-9]{4,12}$/; // 아이디: 영문+숫자, 4~12자
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/; // 비밀번호: 영문+숫자 포함, 8자 이상
+
+    if (!usernameRegex.test(username)) {
+      setError('아이디는 4~12자의 영문 또는 숫자여야 합니다.');
+      return false;
+    }
+
+    if (!passwordRegex.test(password)) {
+      setError('비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.');
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return false;
+    }
+
+    setError('');
+    return true;
+  };
+
+  // 입력값 변경 핸들러
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // 폼 제출 핸들러
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
+
+    // 유효성 검사 실패 시 중단
+    if (!validateInput()) return;
 
     try {
-      if (isLogin) {
-        const loggedInUser: User = await login({ username, password }); // 반환 타입이 User
-        contextLogin(loggedInUser); // AuthContext의 상태 업데이트
+      if (isLoginMode) {
+        // 로그인 시도
+        const token = await loginCounselor(
+          formData.username,
+          formData.password
+        );
+
+        localStorage.setItem('token', token);
         navigate('/main');
       } else {
-        // ... (회원가입 로직 - 여기도 signup 응답 구조 확인 필요)
-        // 이전 답변에서 signup 응답 구조도 확인해서 수정해야 함.
-        // 예: const signupResponse = await signup({ username, password, name });
-        // if (signupResponse.message === 'User created successfully' || (signupResponse.data && signupResponse.data.user_id)) { ... }
+        // 회원가입 요청
+        await registerCounselor({
+          name: formData.name,
+          username: formData.username,
+          password: formData.password,
+        });
+
+        alert('회원가입 성공! 로그인 해주세요.');
+        setFormData({
+          name: '',
+          username: '',
+          password: '',
+          confirmPassword: '',
+        }); // 입력값 초기화
+        setIsLoginMode(true); // 로그인 모드로 전환
       }
     } catch (err: any) {
-      console.error(isLogin ? 'Login error:' : 'Signup error:', err);
-      // err 객체가 Error 인스턴스이므로 err.message 사용
-      const errorMessage = err.message || (isLogin ? 'Login failed.' : 'Signup failed.');
-      setError(errorMessage);
+      setError(err.message || '오류가 발생했습니다.');
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white shadow-md rounded-lg w-full max-w-md">
-        <div className="flex border-b mb-6">
-          <button
-            className={`flex-1 py-2 text-center ${isLogin ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-            onClick={() => { setIsLogin(true); setError(null); }}
-          >
-            로그인
-          </button>
-          <button
-            className={`flex-1 py-2 text-center ${!isLogin ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500'}`}
-            onClick={() => { setIsLogin(false); setError(null); }}
-          >
-            회원가입
-          </button>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center font-sans">
+      {/* 상단 헤더 */}
+      <header className="w-full bg-white shadow-md flex items-center px-6 py-2.5">
+        <img src={LogoImg} alt="로고" className="h-8 w-8 rounded-full mr-2" />
+        <h1 className="text-xl font-semibold text-blue-800 tracking-tight">Call Center</h1>
+      </header>
 
-        <h2 className="text-2xl font-bold mb-6 text-center">{isLogin ? '로그인' : '회원가입'}</h2>
-        {error && <p className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded">{error}</p>}
-        <form onSubmit={handleSubmit}>
-          {!isLogin && (
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-                이름
-              </label>
-              <input
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                id="name"
-                type="text"
-                placeholder="이름을 입력하세요"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required={!isLogin}
-              />
-            </div>
+      {/* 로그인/회원가입 카드 */}
+      <main className="w-full max-w-md mt-16 bg-white p-10 rounded-3xl shadow-xl transition-all duration-300 hover:shadow-2xl">
+        <h2 className="text-3xl font-bold text-center text-blue-800 mb-4">
+          {isLoginMode ? '상담사 로그인' : '상담사 회원가입'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLoginMode && (
+            <input
+              type="text"
+              name="name"
+              placeholder="이름"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+              required
+            />
           )}
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
-              아이디 (Username)
-            </label>
+
+          <input
+            type="text"
+            name="username"
+            placeholder="아이디"
+            value={formData.username}
+            onChange={handleChange}
+            className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+            required
+          />
+
+          <input
+            type="password"
+            name="password"
+            placeholder="비밀번호"
+            value={formData.password}
+            onChange={handleChange}
+            className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
+            required
+          />
+
+          {!isLoginMode && (
             <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="username"
-              type="text" // 또는 "email"
-              placeholder="아이디를 입력하세요"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
-              비밀번호
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
-              id="password"
               type="password"
-              placeholder="비밀번호를 입력하세요"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              name="confirmPassword"
+              placeholder="비밀번호 확인"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
               required
             />
-          </div>
-          <div className="flex items-center justify-between">
-            <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? '처리 중...' : (isLogin ? '로그인' : '회원가입')}
-            </button>
-          </div>
+          )}
+
+          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm"
+          >
+            {isLoginMode ? '로그인' : '회원가입'}
+          </button>
+
+          <p
+            className="text-sm text-center text-blue-600 cursor-pointer hover:underline"
+            onClick={() => setIsLoginMode(!isLoginMode)}
+          >
+            {isLoginMode
+              ? '계정이 없으신가요? 회원가입'
+              : '이미 계정이 있으신가요? 로그인'}
+          </p>
         </form>
-      </div>
+      </main>
+
+      <footer className="text-xs text-gray-400 mt-8 mb-4">
+        © 2025 Call Center. All rights reserved.
+      </footer>
     </div>
   );
 };
