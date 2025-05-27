@@ -1,7 +1,10 @@
 # backend/app/services/ai_service.py
-from transformers import pipeline, WhisperProcessor, WhisperForConditionalGeneration, ElectraForSequenceClassification, ElectraTokenizer
+from transformers import (pipeline, 
+    WhisperProcessor, WhisperForConditionalGeneration,
+    AutoTokenizer, AutoModelForSequenceClassification
+)
 import torch
-import librosa # 음성 파일 로드 및 샘플링 레이트 변환
+import librosa
 
 # --- 0. 모델 로드 (애플리케이션 시작 시 또는 첫 호출 시 로드) ---
 
@@ -30,8 +33,8 @@ def load_models():
 
     if koelectra_tokenizer is None or koelectra_model is None:
         print(f"Loading KoELECTRA model: {koelectra_model_name}...")
-        koelectra_tokenizer = ElectraTokenizer.from_pretrained(koelectra_model_name)
-        koelectra_model = ElectraForSequenceClassification.from_pretrained(koelectra_model_name).to(device)
+        koelectra_tokenizer = AutoTokenizer.from_pretrained(koelectra_model_name)
+        koelectra_model = AutoModelForSequenceClassification.from_pretrained(koelectra_model_name).to(device)
         koelectra_model.eval() # 추론 모드로 설정
         print("KoELECTRA model loaded.")
 

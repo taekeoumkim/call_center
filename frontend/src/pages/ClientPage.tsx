@@ -1,6 +1,7 @@
 // 내담자 상황 녹음 및 전화번호 입력 페이지
 import React, { useState, useRef, useEffect } from 'react';
 import LogoImg from '../images/Logo.jpg';
+import axios from 'axios';
 
 const ClientPage: React.FC = () => {
   // 녹음 중인지 여부 상태
@@ -135,31 +136,16 @@ const ClientPage: React.FC = () => {
     // FormData에 오디오 및 전화번호 첨부
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
-    formData.append('phone', phoneNumber);
+    formData.append('phoneNumber', phoneNumber);
 
     // 서버 제출
     try {
-      const response = await fetch('http://localhost:5000/api/submit', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        alert('제출되었습니다.');
-        setPhoneNumber('');
-        setAudioBlob(null);
-        setRecordingTime(0);
-      } else {
-        const result = await response.json();
-        if (result.error === 'No available counselors') {
-          alert('현재 상담사가 없습니다. 나중에 다시 시도해주세요.');
-        } else {
-          alert('제출에 실패했습니다.');
-        }
-      }
-    } catch (error) {
-      console.error('제출 중 오류:', error);
-      alert('서버 오류가 발생했습니다.');
+      const response = await axios.post('/api/client/submit', formData);
+      console.log('Submit success:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Submit error:', error.response?.data || error.message);
+      throw error;
     }
   };
 

@@ -51,6 +51,8 @@ def login():
     # JWT 토큰 생성
     access_token = create_access_token(identity=user.id, fresh=True) # 로그인 시 fresh 토큰
     refresh_token = create_refresh_token(identity=user.id)
+    print(f"--- DEBUG: Generated access_token in login: {access_token}") # <--- 생성된 토큰 출력
+    print(f"--- DEBUG: Type of access_token: {type(access_token)}")
 
     user.status = 'available' # 로그인 시 상담 가능 상태로 변경 (예시)
     try:

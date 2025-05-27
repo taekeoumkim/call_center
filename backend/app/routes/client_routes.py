@@ -1,9 +1,10 @@
 # backend/app/routes/client_routes.py
-from flask import Blueprint, request, jsonify, current_app
 import os
 import uuid
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
-from sqlalchemy import func
+from sqlalchemy import func, desc, asc
 from .. import db
 from ..models import ClientCall, User
 from ..services import ai_service
@@ -12,7 +13,7 @@ from ..config import Config
 client_bp = Blueprint('client', __name__)
 
 UPLOAD_FOLDER = Config.UPLOAD_FOLDER
-ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a'}
+ALLOWED_EXTENSIONS = {'wav', 'mp3', 'm4a', 'webm'}
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -20,6 +21,61 @@ if not os.path.exists(UPLOAD_FOLDER):
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@client_bp.route('/queue', methods=['GET'])
+@jwt_required()
+def get_waiting_queue():
+    try:
+        current_app.logger.debug("Fetching waiting queue...")
+        # status가 'pending'인 ClientCall들을 risk_level 내림차순, received_at 오름차순으로 정렬
+        waiting_calls = db.session.query(ClientCall)\
+                                  .filter(ClientCall.status == 'pending')\
+                                  .order_by(db.desc(ClientCall.risk_level), db.asc(ClientCall.received_at))\
+                                  .all()
+
+        client_list_for_frontend = []
+        if waiting_calls:
+            for call in waiting_calls:
+                client_list_for_frontend.append({
+                    'id': call.id,
+                    'phone': call.phone_number,
+                    'risk': call.risk_level, # 위험도 값 그대로 사용 (0, 1, 2)
+                })
+            current_app.logger.debug(f"Found {len(client_list_for_frontend)} calls in queue.")
+        else:
+            current_app.logger.debug("No calls found in pending queue.")
+        
+        return jsonify(clients=client_list_for_frontend), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error fetching waiting queue: {str(e)}")
+        return jsonify({"message": "Failed to fetch waiting queue", "error": str(e)}), 500
+    
+@client_bp.route('/queue/reset', methods=['DELETE'])
+@jwt_required()
+def reset_client_queue():
+    try:
+        current_app.logger.info("Attempting to reset client queue...")
+
+        # 'pending' 상태인 모든 통화의 상태를 'cancelled' 또는 'archived'로 변경
+        calls_to_reset = ClientCall.query.filter_by(status='pending').all()
+        num_reset = len(calls_to_reset)
+        for call in calls_to_reset:
+            call.status = 'cancelled_by_reset' # 또는 'archived', 'aborted' 등 적절한 상태명
+            # call.assigned_counselor_id = None # 배정 정보도 초기화할 수 있음
+        
+        if num_reset > 0:
+            db.session.commit()
+            current_app.logger.info(f"{num_reset} pending calls were marked as 'cancelled_by_reset'.")
+        else:
+            current_app.logger.info("No pending calls found to reset.")
+
+        return jsonify({'message': f'Client queue reset successfully. {num_reset} calls affected.'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error resetting client queue: {str(e)}")
+        return jsonify({"message": "Failed to reset client queue", "error": str(e)}), 500
 
 @client_bp.route('/submit', methods=['POST'])
 def submit_client_data():

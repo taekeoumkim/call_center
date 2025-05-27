@@ -53,7 +53,7 @@ const MainPage = () => {
   // 대기열 목록 불러오기
   const fetchQueue = async () => {
     try {
-      const res = await axios.get('/api/queue', {
+      const res = await axios.get('/api/client/queue', {
         headers: { Authorization: `Bearer ${token}` },
       });
       // 위험도 높은 순으로 정렬
@@ -68,7 +68,7 @@ const MainPage = () => {
   const updateConsultingStatus = async (active: boolean) => {
     try {
       await axios.post(
-        '/api/status',
+        '/api/counselor/status',
         { is_active: active ? 1 : 0 },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -80,7 +80,7 @@ const MainPage = () => {
   // 상담 상태 초기 조회
   const getConsultingStatus = async (): Promise<boolean> => {
     try {
-      const res = await axios.get('/api/status', {
+      const res = await axios.get('/api/counselor/status', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const active = res.data.is_active === 1;
@@ -150,12 +150,18 @@ const MainPage = () => {
     // 대기열 전체 삭제
   const resetQueue = async () => {
     try {
-      await axios.delete('/api/queue/reset', {
+      await axios.delete('/api/client/queue/reset', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setClients([]); // UI에서도 대기열 초기화
     } catch (err) {
       console.error('대기열 리셋 실패:', err);
+      // 사용자에게 에러 메시지 표시
+      if (axios.isAxiosError(err) && err.response) {
+          alert(`대기열 리셋 실패: ${err.response.data.message || err.message}`);
+      } else {
+          alert('대기열 리셋 중 알 수 없는 오류가 발생했습니다.');
+      }
     }
   };
 

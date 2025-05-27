@@ -6,57 +6,44 @@ from ..models import User, ClientCall, ConsultationReport
 
 counselor_bp = Blueprint('counselor', __name__)
 
-# --- 상담사 상태 변경 ---
-@counselor_bp.route('/status', methods=['POST'])
+# --- 상담사 상태 조회 및 변경 ---
+@counselor_bp.route('/status', methods=['GET', 'POST'])
 @jwt_required()
-def update_counselor_status():
-    current_user_id = get_jwt_identity() # JWT에서 사용자(상담사) ID 가져오기
-    data = request.get_json()
-    new_status = data.get('status') # 'available', 'busy', 'offline' 등
-
-    if not new_status:
-        return jsonify({'message': 'Status is required'}), 400
-    
-    user = db.session.get(User, current_user_id)
-    if not user:
-        return jsonify({'message': 'User not found (from token)'}), 404
-
-    allowed_statuses = ['available', 'busy', 'offline']
-    if new_status not in allowed_statuses:
-        return jsonify({'message': f'Invalid status. Allowed: {", ".join(allowed_statuses)}'}), 400
-
-    user.status = new_status
-    try:
-        db.session.commit()
-        return jsonify({'message': f'Status updated to {new_status}'}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'message': 'Failed to update status', 'error': str(e)}), 500
-
-# --- 상담사 대기열 조회 ---
-@counselor_bp.route('/queue', methods=['GET'])
-@jwt_required()
-def get_counselor_queue():
+def manage_counselor_status():
     current_user_id = get_jwt_identity()
-    user = db.session.get(User, current_user_id)
+    user = User.query.get(current_user_id)
+
     if not user:
-        return jsonify({'message': 'User not found (from token)'}), 404
+        return jsonify({"message": "Counselor not found"}), 404
 
-    # 해당 상담사에게 배정된 'pending' 또는 'assigned' 상태의 통화 목록
-    # 위험도 높은 순 -> 접수 시간 빠른 순 정렬
-    calls = ClientCall.query.filter_by(assigned_counselor_id=current_user_id)\
-                            .filter(ClientCall.status.in_(['pending', 'assigned']))\
-                            .order_by(ClientCall.risk_level.desc(), ClientCall.received_at.asc())\
-                            .all()
+    if request.method == 'POST':
+        data = request.get_json()
+        is_active_from_frontend = data.get('is_active') # 프론트에서 0 또는 1로 전달
 
-    queue_data = [{
-        'call_id': call.id,
-        'phone_number': call.phone_number,
-        'risk_level': call.risk_level,
-        'received_at': call.received_at.isoformat(), # ISO 형식으로 변환
-        'status': call.status
-    } for call in calls]
-    return jsonify(queue_data), 200
+        if is_active_from_frontend is None or is_active_from_frontend not in [0, 1]:
+            return jsonify({"message": "'is_active' field (0 or 1) is required in request body"}), 400
+
+        if is_active_from_frontend == 1:
+            user.status = 'available' # 상담 시작 시 'available'
+        else:
+            user.status = 'offline'   # 상담 종료 시 'offline'
+            # 추가 로직: 만약 이 상담사가 현재 진행 중인 ClientCall이 있다면 처리 (예: 대기열로 복귀)
+            # assigned_calls = ClientCall.query.filter_by(assigned_counselor_id=user.id, status='assigned').all()
+            # for call in assigned_calls:
+            #     call.status = 'pending' # 또는 다른 적절한 상태
+            #     call.assigned_counselor_id = None
+
+        try:
+            db.session.commit()
+            return jsonify({'message': 'Counselor status updated successfully', 'new_db_status': user.status}), 200
+        except Exception as e:
+            db.session.rollback()
+            # current_app.logger.error(...) # 로깅
+            return jsonify({'message': 'Failed to update counselor status', 'error': str(e)}), 500
+    
+    # GET 요청 처리
+    is_active_flag = 1 if user.status in ['available', 'busy'] else 0
+    return jsonify({'is_active': is_active_flag, 'current_db_status': user.status}), 200
 
 # --- 소견서 저장 ---
 @counselor_bp.route('/report/save', methods=['POST'])
