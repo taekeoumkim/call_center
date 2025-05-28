@@ -93,6 +93,46 @@ const MainPage = () => {
     }
   };
 
+  // 내담자 카드 클릭 핸들러 (배정 API 호출 추가)
+  const handleClientCardClick = async (client_id: number) => {
+    if (!isConsulting) { // 상담 시작 상태일 때만 배정 시도 (또는 다른 조건)
+      alert('상담을 먼저 시작해주세요.');
+      return;
+    }
+
+    if (!token) return;
+
+    // 사용자에게 확인 (선택 사항)
+    if (!window.confirm("이 내담자와 상담을 시작하시겠습니까?")) {
+      return;
+    }
+
+    try {
+      // 백엔드의 '/api/counselor/assign_client/<client_call_id>' API 호출
+      const response = await axios.post(
+        `/api/counselor/assign_client/${client_id}`, 
+        {}, // POST 요청이지만 바디 데이터는 없을 수 있음
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.status === 200) {
+        // 배정 성공 시 ClientDetailPage로 이동
+        console.log("Client assigned:", response.data.client); // 성공 로그 (선택적)
+        navigate(`/patient/${client_id}`);
+      } else {
+        // 배정 실패 (200이 아닌 경우, 또는 에러는 catch에서 처리)
+        alert(response.data.message || '내담자 배정에 실패했습니다.');
+      }
+    } catch (err: any) {
+      console.error('내담자 배정 실패:', err);
+      if (axios.isAxiosError(err) && err.response) {
+        alert(`내담자 배정 실패: ${err.response.data.message || '서버 오류가 발생했습니다.'}`);
+      } else {
+        alert('내담자 배정 중 알 수 없는 오류가 발생했습니다.');
+      }
+    }
+  };
+
   // 컴포넌트 마운트 시: 토큰 확인 및 상담사 이름 추출
   useEffect(() => {
     if (!token) {
@@ -132,15 +172,27 @@ const MainPage = () => {
     updateConsultingStatus(next);
   };
 
-  // 로그아웃 처리
   const handleLogout = async () => {
-    try {
-      await updateConsultingStatus(false); // 상담 종료 상태로 전환
-    } catch (err) {
-      console.error('로그아웃 중 상태 업데이트 실패:', err);
+    if (token) { // 토큰이 있을 때만 상태 변경 API 호출 시도
+      try {
+        await axios.post(
+          '/api/counselor/status', // <--- API 경로 수정
+          { is_active: 0 }, // 상담사 상태를 'offline'으로 변경 (is_active: 0)
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('상담사 상태가 오프라인으로 변경되었습니다.');
+      } catch (error) {
+        console.error('로그아웃 중 상담사 상태 변경 실패:', error);
+        // 이 에러를 사용자에게 알릴 수도 있지만,
+        // 일반적으로 상태 변경 실패와 관계없이 클라이언트 측 로그아웃은 진행합니다.
+      }
     }
-    localStorage.removeItem('token'); // 토큰 삭제
-    navigate('/'); // 로그인 페이지로 이동
+
+    // 항상 클라이언트 측 로그아웃 작업 수행
+    localStorage.removeItem('token'); // 로컬 스토리지에서 토큰 제거
+    axios.defaults.headers.common['Authorization'] = null; // Axios 헤더에서도 토큰 제거 (선택적이지만 좋은 습관)
+    navigate('/'); // 로그인 페이지로 리디렉션
+    // 필요하다면, 상태 관리 라이브러리(Redux, Zustand 등)의 사용자 정보도 초기화합니다.
   };
 
   // 내담자 스크롤 좌우 이동 핸들러
@@ -238,7 +290,7 @@ const MainPage = () => {
               {clients.map((client) => (
                 <div
                   key={client.id}
-                  onClick={() => navigate(`/patient/${client.id}`)}
+                  onClick={() => handleClientCardClick(client.id)}
                   className={`min-w-[240px] bg-blue-50 border-t-4 ${riskColors[client.risk]} rounded-xl shadow-md p-5 cursor-pointer hover:shadow-lg hover:scale-105 transition`}
                 >
                   <div className="font-semibold text-blue-800 mb-1">{riskLabels[client.risk]}</div>

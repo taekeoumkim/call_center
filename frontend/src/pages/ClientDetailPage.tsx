@@ -109,7 +109,7 @@ const ClientDetailPage = () => {
     try {
       // 소견서 작성 요청
       await axios.post(
-        '/api/report',
+        '/api/counselor/report/save',
         {
           client_id: client.id,
           name: form.name,
@@ -124,7 +124,7 @@ const ClientDetailPage = () => {
 
       // 대기열에서 해당 내담자 삭제
       await axios.post(
-        '/api/queue/delete',
+        '/api/client/queue/delete',
         { client_id: client.id },
         { headers: { Authorization: `Bearer ${token}` } }
       );

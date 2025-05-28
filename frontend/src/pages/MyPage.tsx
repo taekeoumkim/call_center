@@ -42,7 +42,7 @@ const MyPage: React.FC = () => {
     }
 
     // 토큰이 있으면 소견서 목록 API 호출
-    axios.get('/api/myreports', {
+    axios.get('/api/counselor/myreports', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {
@@ -86,23 +86,27 @@ const MyPage: React.FC = () => {
     }
   };
 
-  // 로그아웃 처리
   const handleLogout = async () => {
-    try {
-      // 상담사 상태를 0 (상담 종료)로 변경
-      await axios.post(
-        '/api/status',
-        { is_active: 0 },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (error) {
-      console.error('상태 업데이트 실패:', error);
-      // 실패하더라도 로그아웃은 계속 진행
-    } finally {
-      // 토큰 삭제 및 로그인 페이지로 이동
-      localStorage.removeItem('token');
-      navigate('/');
+    if (token) { // 토큰이 있을 때만 상태 변경 API 호출 시도
+      try {
+        await axios.post(
+          '/api/counselor/status', // <--- API 경로 수정
+          { is_active: 0 }, // 상담사 상태를 'offline'으로 변경 (is_active: 0)
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('상담사 상태가 오프라인으로 변경되었습니다.');
+      } catch (error) {
+        console.error('로그아웃 중 상담사 상태 변경 실패:', error);
+        // 이 에러를 사용자에게 알릴 수도 있지만,
+        // 일반적으로 상태 변경 실패와 관계없이 클라이언트 측 로그아웃은 진행합니다.
+      }
     }
+
+    // 항상 클라이언트 측 로그아웃 작업 수행
+    localStorage.removeItem('token'); // 로컬 스토리지에서 토큰 제거
+    axios.defaults.headers.common['Authorization'] = null; // Axios 헤더에서도 토큰 제거 (선택적이지만 좋은 습관)
+    navigate('/'); // 로그인 페이지로 리디렉션
+    // 필요하다면, 상태 관리 라이브러리(Redux, Zustand 등)의 사용자 정보도 초기화합니다.
   };
 
   return (

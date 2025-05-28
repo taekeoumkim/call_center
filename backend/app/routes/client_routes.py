@@ -22,6 +22,35 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@client_bp.route('/<int:client_call_id>', methods=['GET'])
+@jwt_required() # 인증된 사용자만 접근 가능
+def get_client_detail(client_call_id):
+    """
+    특정 ClientCall(내담자 통화)의 상세 정보를 반환합니다.
+    프론트엔드의 ClientDetailPage에서 사용됩니다.
+    """
+    client_call = ClientCall.query.get(client_call_id)
+
+    if not client_call:
+        return jsonify({"message": "Client call not found"}), 404
+
+    # 프론트엔드 Client 인터페이스에 맞게 데이터 구성
+    # interface Client {
+    #   id: number;
+    #   phone: string;
+    #   risk: 0 | 1 | 2;
+    # }
+    client_data = {
+        "id": client_call.id,
+        "phone": client_call.phone_number, # ClientCall.phone_number -> phone
+        "risk": client_call.risk_level     # ClientCall.risk_level -> risk
+        # 필요에 따라 다른 ClientCall 필드도 추가 가능
+        # "status": client_call.status,
+        # "received_at": client_call.received_at.isoformat() if client_call.received_at else None,
+    }
+
+    return jsonify(client_data), 200
+
 @client_bp.route('/queue', methods=['GET'])
 @jwt_required()
 def get_waiting_queue():
@@ -76,6 +105,49 @@ def reset_client_queue():
         db.session.rollback()
         current_app.logger.error(f"Error resetting client queue: {str(e)}")
         return jsonify({"message": "Failed to reset client queue", "error": str(e)}), 500
+    
+@client_bp.route('/queue/delete', methods=['POST'])
+@jwt_required()
+def delete_client_from_queue():
+    data = request.get_json()
+    client_id_to_delete = data.get('client_id')
+
+    if client_id_to_delete is None: # client_id가 없는 경우
+        return jsonify({"message": "client_id is required in the request body"}), 400
+
+    try:
+        client_call_id = int(client_id_to_delete)
+    except ValueError:
+        return jsonify({"message": "client_id must be an integer"}), 400
+
+    call_to_modify = ClientCall.query.get(client_call_id)
+
+    if not call_to_modify:
+        current_app.logger.warn(f"Attempted to delete client_id {client_call_id} from queue, but it was not found.")
+        return jsonify({"message": f"Client call with ID {client_call_id} not found."}), 404
+
+    current_app.logger.info(f"Request to remove client_id {client_call_id} from queue. Current status: {call_to_modify.status}")
+
+    # 이미 'completed' 상태라면 (소견서 저장 시 이미 변경됨), 특별한 추가 작업 없이 성공 응답
+    if call_to_modify.status == 'completed':
+        return jsonify({"message": f"Client call {client_call_id} is already completed. No further action needed for queue removal."}), 200
+    
+    # 만약 'pending' 또는 'assigned' 상태에서 이 API가 호출되었다면 (예상치 못한 상황),
+    # 'completed' 또는 다른 적절한 상태로 변경할 수 있습니다.
+    # 여기서는 이미 ClientDetailPage에서 소견서 작성 후 'completed'로 변경되었을 것이므로,
+    # 이 분기는 예외적인 경우를 대비한 것입니다.
+    if call_to_modify.status in ['pending', 'assigned']:
+        call_to_modify.status = 'completed_manual_dequeue'
+        # call_to_modify.assigned_counselor_id = None # 배정 정보 초기화는 소견서 작성 상담사가 있으므로 불필요할 수 있음
+
+    try:
+        db.session.commit()
+        current_app.logger.info(f"Client call {client_call_id} processed for queue removal (or was already completed).")
+        return jsonify({"message": f"Client call {client_call_id} successfully processed for queue removal."}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error processing client call {client_call_id} for queue removal: {str(e)}")
+        return jsonify({"message": "Failed to process client call for queue removal", "error": str(e)}), 500
 
 @client_bp.route('/submit', methods=['POST'])
 def submit_client_data():

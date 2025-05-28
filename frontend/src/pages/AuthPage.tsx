@@ -1,5 +1,5 @@
 // 상담사 로그인/회원가입 페이지
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { loginCounselor, registerCounselor } from '../api/authApi'; // 인증 API 호출 함수 import
 import { useNavigate } from 'react-router-dom'; // 페이지 이동을 위한 hook
 import LogoImg from '../images/Logo.jpg'; // 로고 이미지 import
@@ -21,6 +21,25 @@ const AuthPage: React.FC = () => {
 
   // 페이지 이동을 위한 훅
   const navigate = useNavigate();
+
+  const token = localStorage.getItem('token');
+
+  // useEffect를 사용하여 컴포넌트 마운트 시 또는 token 변경 시 리디렉션 로직 실행
+  useEffect(() => {
+    if (token) {
+      // 여기에 더 엄격한 토큰 유효성 검사를 추가할 수 있습니다.
+      // 예: jwtDecode를 사용하여 토큰 만료 시간(exp) 확인
+      // const decodedToken: { exp: number } = jwtDecode(token);
+      // if (decodedToken.exp * 1000 > Date.now()) {
+      //   navigate('/main');
+      // } else {
+      //   localStorage.removeItem('token'); // 만료된 토큰 제거
+      // }
+      
+      // 현재는 토큰 존재 유무만으로 리디렉션
+      navigate('/main');
+    }
+  }, [navigate, token]); // token이 변경될 때도 이 useEffect를 재실행
 
   // 입력값 유효성 검사 함수 (회원가입 시에만 적용됨)
   const validateInput = (): boolean => {
@@ -97,6 +116,12 @@ const AuthPage: React.FC = () => {
       setError(err.message || '오류가 발생했습니다.');
     }
   };
+
+  // 만약 토큰이 있어서 /main으로 리디렉션될 예정이라면,
+  // AuthPage의 UI를 렌더링하지 않고 null을 반환하여 깜빡임을 방지할 수 있습니다.
+  if (token) { // 이 조건은 useEffect가 실행되기 전에 체크하여 UI 렌더링을 막음
+    return null; // 또는 <LoadingSpinner /> 같은 것을 보여줄 수 있음
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col items-center font-sans">
