@@ -129,15 +129,20 @@ backend/*.mo
 backend/*.pot
 
 # Flask stuff
-backend/instance/ # Includes app.db and uploads/ by default
+backend/instance/
+backend/instance/app.db
 backend/instance/uploads/
-# backend/instance/app.db # If you want to ignore instance/ but keep some files
-# backend/instance/uploads/ # This is covered by backend/instance/
 .webassets-cache # If used at backend root
 backend/.flask_session/
 
+# Database files
+backend/*.db
+backend/*.db-journal
+backend/*.sqlite
+backend/*.sqlite3
+
 # Environments - Backend specific
-backend/.env # Backend specific .env
+backend/.env
 backend/.venv/
 backend/env/
 backend/venv/
@@ -145,18 +150,16 @@ backend/ENV/
 backend/env.bak/
 backend/venv.bak/
 
-# SQLite - Backend specific (already covered by backend/instance/ or general *.db)
-# backend/*.db
-# backend/*.db-journal
-# backend/*.sqlite
-# backend/*.sqlite3
-
 # Logs - Backend specific
-# backend/logs/ # If backend has its own logs directory
-# backend/npm-debug.log* # Usually not in backend, but kept if from original
-# backend/yarn-debug.log* # Usually not in backend
-# backend/yarn-error.log* # Usually not in backend
-# backend/lerna-debug.log* # Usually not in backend
+backend/logs/
+backend/*.log
+
+# Migration files
+backend/migrations/versions/
+
+# Test files
+backend/tests/__pycache__/
+backend/tests/.pytest_cache/
 
 # ===================================================================
 # Top-level node_modules (if it exists outside frontend/backend)
