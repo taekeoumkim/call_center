@@ -1,4 +1,3 @@
-#backend/migrations/env.py
 import logging
 from logging.config import fileConfig
 
@@ -37,11 +36,8 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from app import db as application_db # app/__init__.py 에서 정의한 db 객체 임포트
-target_metadata = application_db.metadata # db 객체의 metadata를 사용
 config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
-
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
