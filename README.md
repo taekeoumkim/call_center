@@ -34,11 +34,11 @@ AI 기반 음성 감정 인식 및 자살 위험도 예측 시스템을 통해, 
 ## 🛠️ 기술 스택 (Tech Stack)
 
 **Frontend:**
-*   React
-*   TypeScript
-*   React Router
-*   CSS (또는 선택한 스타일링 라이브러리)
-*   Axios (또는 Fetch API) - API 통신
+*   React (컴포넌트 기반 UI 라이브러리)
+*   TypeScript (정적 타입을 지원하는 JavaScript 확장)
+*   React Router (SPA 내 라우팅 및 페이지 전환 관리)
+*   Tailwind CSS (유틸리티 기반 CSS 프레임워크)
+*   Axios (API 통신용 HTTP 클라이언트 라이브러리)
 
 **Backend:**
 *   Python 3.12
