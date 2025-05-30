@@ -154,9 +154,6 @@ backend/venv.bak/
 backend/logs/
 backend/*.log
 
-# Migration files
-backend/migrations/versions/
-
 # Test files
 backend/tests/__pycache__/
 backend/tests/.pytest_cache/
