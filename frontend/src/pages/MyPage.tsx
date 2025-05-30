@@ -86,6 +86,19 @@ const MyPage: React.FC = () => {
     }
   };
 
+  // UTC 시간을 KST로 변환하는 함수
+  const convertToKST = (utcDate: string) => {
+    const date = new Date(utcDate);
+    return new Date(date.getTime() + (9 * 60 * 60 * 1000)).toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
   const handleLogout = async () => {
     if (token) { // 토큰이 있을 때만 상태 변경 API 호출 시도
       try {
@@ -178,7 +191,7 @@ const MyPage: React.FC = () => {
                   <td className="p-2">{report.gender}</td>
                   <td className="p-2">{report.age}</td>
                   <td className="p-2">{riskToText(report.risk)}</td>
-                  <td className="p-2">{report.created_at}</td>
+                  <td className="p-2">{convertToKST(report.created_at)}</td>
                   <td className="p-2">
                     <button
                       onClick={() => {
@@ -208,7 +221,7 @@ const MyPage: React.FC = () => {
               <div><strong>성별:</strong> {selectedReport.gender}</div>
               <div><strong>전화번호:</strong> {selectedReport.phone}</div>
               <div><strong>자살위험도:</strong> {riskToText(selectedReport.risk)}</div>
-              <div><strong>작성일:</strong> {selectedReport.created_at}</div>
+              <div><strong>작성일:</strong> {convertToKST(selectedReport.created_at)}</div>
               <div><strong>소견 내용:</strong> {selectedReport.memo}</div>
             </div>
             <div className="text-center mt-6">
