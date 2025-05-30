@@ -16,6 +16,9 @@ const ClientPage: React.FC = () => {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   // 타이머 참조 (녹음 시간 측정용)
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // 제출 상태 관리
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // 최대 녹음 시간 (초)
   const MAX_RECORDING_TIME = 10;
@@ -133,6 +136,9 @@ const ClientPage: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
+
     // FormData에 오디오 및 전화번호 첨부
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
@@ -142,10 +148,18 @@ const ClientPage: React.FC = () => {
     try {
       const response = await axios.post('/api/client/submit', formData);
       console.log('Submit success:', response.data);
-      return response.data;
+      setSubmitStatus('success');
+      alert('상담 요청이 성공적으로 접수되었습니다.');
+      // 성공 후 입력 필드 초기화
+      setAudioBlob(null);
+      setPhoneNumber('');
+      setRecordingTime(0);
     } catch (error: any) {
       console.error('Submit error:', error.response?.data || error.message);
-      throw error;
+      setSubmitStatus('error');
+      alert('상담 요청 접수 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -211,9 +225,24 @@ const ClientPage: React.FC = () => {
         {/* 제출 버튼 */}
         <button
           onClick={handleSubmit}
-          className='w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm'
+          disabled={isSubmitting}
+          className={`w-full font-semibold py-3 rounded-xl shadow-md transition-all duration-200 text-sm ${
+            isSubmitting
+              ? 'bg-gray-400 cursor-not-allowed'
+              : submitStatus === 'success'
+              ? 'bg-green-600 hover:bg-green-700'
+              : submitStatus === 'error'
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-blue-600 hover:bg-blue-700'
+          } text-white`}
         >
-          상담 요청하기
+          {isSubmitting
+            ? '제출 중...'
+            : submitStatus === 'success'
+            ? '제출 완료'
+            : submitStatus === 'error'
+            ? '다시 시도하기'
+            : '상담 요청하기'}
         </button>
       </main>
 
