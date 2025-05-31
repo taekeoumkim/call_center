@@ -3,6 +3,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import LogoImg from '../images/Logo.jpg';
 import axios from 'axios';
 
+// 로깅 함수 추가
+const logEvent = (event: string, data?: any) => {
+  console.log(`[ClientPage] ${event}`, data ? data : '');
+};
+
 const ClientPage: React.FC = () => {
   // 녹음 중인지 여부 상태
   const [isRecording, setIsRecording] = useState(false);
@@ -53,37 +58,34 @@ const ClientPage: React.FC = () => {
   // 녹음 시작 함수
   const startRecording = async () => {
     try {
-      // 기존 Blob 제거
       setAudioBlob(null);
 
-      // 기존 MediaRecorder 종료 처리
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
       }
 
-      // 마이크 접근 및 MediaRecorder 생성
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       const localChunks: Blob[] = [];
 
-      // 데이터 수집 이벤트
       recorder.ondataavailable = (e: BlobEvent) => {
         localChunks.push(e.data);
       };
 
-      // 녹음 종료 시 Blob 저장 및 스트림 정리
       recorder.onstop = () => {
         const blob = new Blob(localChunks, { type: 'audio/webm' });
         setAudioBlob(blob);
+        logEvent('녹음 완료', { duration: recordingTime, size: blob.size });
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      // 녹음 시작
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
       setRecordingTime(0);
+      logEvent('녹음 시작');
     } catch (error) {
+      logEvent('마이크 접근 오류', { error: error instanceof Error ? error.message : 'Unknown error' });
       console.error('마이크 접근 오류:', error);
       alert('마이크 접근을 허용해주세요.');
     }
@@ -125,13 +127,14 @@ const ClientPage: React.FC = () => {
 
   // 제출 버튼 핸들러
   const handleSubmit = async () => {
-    // 입력값 유효성 확인
     if (!audioBlob || !phoneNumber) {
+      logEvent('제출 실패 - 필수 입력 누락');
       alert('녹음과 전화번호를 모두 입력해주세요.');
       return;
     }
 
     if (!validatePhoneNumber(phoneNumber)) {
+      logEvent('제출 실패 - 전화번호 형식 오류', { phoneNumber });
       alert('올바른 전화번호 형식(010-0000-0000)으로 입력해주세요.');
       return;
     }
@@ -139,22 +142,27 @@ const ClientPage: React.FC = () => {
     setIsSubmitting(true);
     setSubmitStatus('idle');
 
-    // FormData에 오디오 및 전화번호 첨부
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.webm');
     formData.append('phoneNumber', phoneNumber);
 
-    // 서버 제출
     try {
       const response = await axios.post('/api/client/submit', formData);
-      console.log('Submit success:', response.data);
+      logEvent('상담 요청 제출 성공', { 
+        phoneNumber,
+        audioSize: audioBlob.size,
+        response: response.data 
+      });
       setSubmitStatus('success');
       alert('상담 요청이 성공적으로 접수되었습니다.');
-      // 성공 후 입력 필드 초기화
       setAudioBlob(null);
       setPhoneNumber('');
       setRecordingTime(0);
     } catch (error: any) {
+      logEvent('상담 요청 제출 실패', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        response: error.response?.data 
+      });
       console.error('Submit error:', error.response?.data || error.message);
       setSubmitStatus('error');
       alert('상담 요청 접수 중 오류가 발생했습니다. 다시 시도해주세요.');

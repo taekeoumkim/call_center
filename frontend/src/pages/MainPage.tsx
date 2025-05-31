@@ -33,6 +33,11 @@ const riskColors = {
   2: 'border-red-500',
 };
 
+// 로깅 함수 추가
+const logEvent = (event: string, data?: any) => {
+  console.log(`[MainPage] ${event}`, data ? data : '');
+};
+
 const MainPage = () => {
   // 상담 상태 및 상태 업데이트용
   const [isConsulting, setIsConsulting] = useState(false);
@@ -56,10 +61,11 @@ const MainPage = () => {
       const res = await axios.get('/api/client/queue', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // 위험도 높은 순으로 정렬
       const sorted = res.data.clients.sort((a: Client, b: Client) => b.risk - a.risk);
+      logEvent('대기열 조회 성공', { count: sorted.length });
       setClients(sorted);
     } catch (err) {
+      logEvent('대기열 조회 실패', { error: err instanceof Error ? err.message : 'Unknown error' });
       console.error('대기열 오류:', err);
     }
   };
@@ -72,7 +78,9 @@ const MainPage = () => {
         { is_active: active ? 1 : 0 },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      logEvent('상담 상태 변경 성공', { status: active ? 'online' : 'offline' });
     } catch (err) {
+      logEvent('상담 상태 변경 실패', { error: err instanceof Error ? err.message : 'Unknown error' });
       console.error('상담 상태 변경 실패:', err);
     }
   };
@@ -95,35 +103,38 @@ const MainPage = () => {
 
   // 내담자 카드 클릭 핸들러 (배정 API 호출 추가)
   const handleClientCardClick = async (client_id: number) => {
-    if (!isConsulting) { // 상담 시작 상태일 때만 배정 시도 (또는 다른 조건)
+    if (!isConsulting) {
+      logEvent('상담 시작 전 내담자 배정 시도');
       alert('상담을 먼저 시작해주세요.');
       return;
     }
 
     if (!token) return;
 
-    // 사용자에게 확인 (선택 사항)
     if (!window.confirm("이 내담자와 상담을 시작하시겠습니까?")) {
+      logEvent('내담자 배정 취소');
       return;
     }
 
     try {
-      // 백엔드의 '/api/counselor/assign_client/<client_call_id>' API 호출
       const response = await axios.post(
-        `/api/counselor/assign_client/${client_id}`, 
-        {}, // POST 요청이지만 바디 데이터는 없을 수 있음
+        `/api/counselor/assign_client/${client_id}`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.status === 200) {
-        // 배정 성공 시 ClientDetailPage로 이동
-        console.log("Client assigned:", response.data.client); // 성공 로그 (선택적)
+        logEvent('내담자 배정 성공', { clientId: client_id });
         navigate(`/patient/${client_id}`);
       } else {
-        // 배정 실패 (200이 아닌 경우, 또는 에러는 catch에서 처리)
+        logEvent('내담자 배정 실패', { status: response.status, message: response.data.message });
         alert(response.data.message || '내담자 배정에 실패했습니다.');
       }
     } catch (err: any) {
+      logEvent('내담자 배정 에러', { 
+        error: err instanceof Error ? err.message : 'Unknown error',
+        response: err.response?.data
+      });
       console.error('내담자 배정 실패:', err);
       if (axios.isAxiosError(err) && err.response) {
         alert(`내담자 배정 실패: ${err.response.data.message || '서버 오류가 발생했습니다.'}`);
@@ -180,7 +191,6 @@ const MainPage = () => {
           { is_active: 0 }, // 상담사 상태를 'offline'으로 변경 (is_active: 0)
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        console.log('상담사 상태가 오프라인으로 변경되었습니다.');
       } catch (error) {
         console.error('로그아웃 중 상담사 상태 변경 실패:', error);
         // 이 에러를 사용자에게 알릴 수도 있지만,

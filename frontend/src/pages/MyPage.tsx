@@ -22,6 +22,11 @@ interface GroupedReports {
   reports: Report[];
 }
 
+// 로깅 함수 추가
+const logEvent = (event: string, data?: any) => {
+  console.log(`[MyPage] ${event}`, data ? data : '');
+};
+
 const MyPage: React.FC = () => {
   // 전체 소견서 리스트
   const [reports, setReports] = useState<Report[]>([]);
@@ -55,11 +60,12 @@ const MyPage: React.FC = () => {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => {
-        // 성공 시 전체 및 필터용 상태 모두 저장
+        logEvent('소견서 목록 조회 성공', { count: res.data.reports.length });
         setReports(res.data.reports);
         setFilteredReports(res.data.reports);
       })
-      .catch(() => {
+      .catch((error) => {
+        logEvent('소견서 목록 조회 실패', { error: error.message });
         alert('소견서 정보를 불러오는 데 실패했습니다.');
         navigate('/');
       });
@@ -129,18 +135,19 @@ const MyPage: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    if (token) { // 토큰이 있을 때만 상태 변경 API 호출 시도
+    if (token) {
       try {
         await axios.post(
-          '/api/counselor/status', // <--- API 경로 수정
-          { is_active: 0 }, // 상담사 상태를 'offline'으로 변경 (is_active: 0)
+          '/api/counselor/status',
+          { is_active: 0 },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        console.log('상담사 상태가 오프라인으로 변경되었습니다.');
+        logEvent('상담사 상태 오프라인으로 변경 성공');
       } catch (error) {
+        logEvent('상담사 상태 변경 실패', { 
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
         console.error('로그아웃 중 상담사 상태 변경 실패:', error);
-        // 이 에러를 사용자에게 알릴 수도 있지만,
-        // 일반적으로 상태 변경 실패와 관계없이 클라이언트 측 로그아웃은 진행합니다.
       }
     }
 
