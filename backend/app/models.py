@@ -29,8 +29,9 @@ class ClientCall(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     phone_number = db.Column(db.String(20), nullable=False)
     audio_file_path = db.Column(db.String(255))
+    transcribed_text = db.Column(db.Text) # Whisper로 인식된 텍스트
     risk_level = db.Column(db.Integer, default=0) # 0: unassigned, 1: low, 2: medium, 3: high
-    status = db.Column(db.String(20), default='pending', nullable=False) # 'pending', 'assigned', 'completed'
+    status = db.Column(db.String(20), default='available_for_assignment', nullable=False) # 'available_for_assignment', 'assigned', 'completed'
     assigned_counselor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     received_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -52,6 +53,7 @@ class ConsultationReport(db.Model):
     client_gender = db.Column(db.String(10)) # 'male', 'female', 'other'
     memo_text = db.Column(db.Text)
     risk_level_recorded = db.Column(db.Integer, nullable=False)
+    transcribed_text = db.Column(db.Text) # Whisper로 인식된 텍스트
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     # 관계 설정

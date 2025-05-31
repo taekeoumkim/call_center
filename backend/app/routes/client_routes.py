@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, asc
 from .. import db
-from ..models import ClientCall, User
+from ..models import ClientCall, User, ConsultationReport
 from ..services import ai_service
 from ..config import Config
 
@@ -43,7 +43,8 @@ def get_client_detail(client_call_id):
     client_data = {
         "id": client_call.id,
         "phone": client_call.phone_number, # ClientCall.phone_number -> phone
-        "risk": client_call.risk_level     # ClientCall.risk_level -> risk
+        "risk": client_call.risk_level,    # ClientCall.risk_level -> risk
+        "transcribed_text": client_call.transcribed_text  # 음성 인식 텍스트 추가
         # 필요에 따라 다른 ClientCall 필드도 추가 가능
         # "status": client_call.status,
         # "received_at": client_call.received_at.isoformat() if client_call.received_at else None,
@@ -56,9 +57,9 @@ def get_client_detail(client_call_id):
 def get_waiting_queue():
     try:
         current_app.logger.debug("Fetching waiting queue...")
-        # status가 'pending'인 ClientCall들을 risk_level 내림차순, received_at 오름차순으로 정렬
+        # status가 'pending' 또는 'available_for_assignment'인 ClientCall들을 risk_level 내림차순, received_at 오름차순으로 정렬
         waiting_calls = db.session.query(ClientCall)\
-                                  .filter(ClientCall.status == 'pending')\
+                                  .filter(ClientCall.status.in_(['pending', 'available_for_assignment']))\
                                   .order_by(db.desc(ClientCall.risk_level), db.asc(ClientCall.received_at))\
                                   .all()
 
@@ -86,8 +87,8 @@ def reset_client_queue():
     try:
         current_app.logger.info("Attempting to reset client queue...")
 
-        # 'pending' 상태인 모든 통화의 상태를 'cancelled' 또는 'archived'로 변경
-        calls_to_reset = ClientCall.query.filter_by(status='pending').all()
+        # 'pending' 또는 'available_for_assignment' 상태인 모든 통화의 상태를 'cancelled' 또는 'archived'로 변경
+        calls_to_reset = ClientCall.query.filter(ClientCall.status.in_(['pending', 'available_for_assignment'])).all()
         num_reset = len(calls_to_reset)
         for call in calls_to_reset:
             call.status = 'cancelled_by_reset' # 또는 'archived', 'aborted' 등 적절한 상태명
@@ -132,11 +133,9 @@ def delete_client_from_queue():
     if call_to_modify.status == 'completed':
         return jsonify({"message": f"Client call {client_call_id} is already completed. No further action needed for queue removal."}), 200
     
-    # 만약 'pending' 또는 'assigned' 상태에서 이 API가 호출되었다면 (예상치 못한 상황),
+    # 만약 'pending', 'available_for_assignment' 또는 'assigned' 상태에서 이 API가 호출되었다면 (예상치 못한 상황),
     # 'completed' 또는 다른 적절한 상태로 변경할 수 있습니다.
-    # 여기서는 이미 ClientDetailPage에서 소견서 작성 후 'completed'로 변경되었을 것이므로,
-    # 이 분기는 예외적인 경우를 대비한 것입니다.
-    if call_to_modify.status in ['pending', 'assigned']:
+    if call_to_modify.status in ['pending', 'available_for_assignment', 'assigned']:
         call_to_modify.status = 'completed_manual_dequeue'
         # call_to_modify.assigned_counselor_id = None # 배정 정보 초기화는 소견서 작성 상담사가 있으므로 불필요할 수 있음
 
@@ -168,7 +167,9 @@ def submit_client_data():
         audio_file.save(audio_file_path)
         current_app.logger.info(f"Audio file saved to: {audio_file_path}")
 
-        risk_level = ai_service.analyze_audio_risk(audio_file_path)
+        # 음성 인식 및 위험도 분석
+        transcribed_text = ai_service.speech_to_text(audio_file_path)
+        risk_level = ai_service.predict_suicide_risk(transcribed_text) if transcribed_text else 0
 
         if risk_level is None:
             current_app.logger.error(f"AI risk analysis failed for {audio_file_path}. Assigning default risk level 0.")
@@ -188,32 +189,27 @@ def submit_client_data():
             return jsonify({'message': 'No available counselors at the moment. Please try again later.'}), 503
 
         # 2. 각 상담사별 현재 활성 대기열 수 계산
-        # ClientCall 테이블에서 'pending' 또는 'assigned' 상태인 통화 수를 상담사별로 집계
-        # 결과: [(counselor_id, count), (counselor_id, count), ...]
-        # SQLAlchemy의 func.count와 group_by를 사용
         subquery = db.session.query(
             ClientCall.assigned_counselor_id,
             func.count(ClientCall.id).label('active_calls')
         ).filter(
-            ClientCall.status.in_(['pending', 'assigned']) # 활성 상태로 간주할 상태들
+            ClientCall.status.in_(['pending', 'assigned'])
         ).group_by(
             ClientCall.assigned_counselor_id
         ).subquery()
 
-        # 상담사 정보와 그들의 활성 통화 수를 조인 (LEFT JOIN 사용)
-        # 결과: [(User 객체, active_calls_count 또는 None), ...]
         counselor_call_counts_query = db.session.query(
             User,
             subquery.c.active_calls
         ).outerjoin(
             subquery, User.id == subquery.c.assigned_counselor_id
         ).filter(
-            User.status == 'available' # 다시 한번 'available' 상태 필터링
+            User.status == 'available'
         )
         
         counselors_with_counts = []
         for user, count in counselor_call_counts_query.all():
-            active_calls = count if count is not None else 0 # 집계 결과가 없는 상담사는 0건
+            active_calls = count if count is not None else 0
             counselors_with_counts.append({'user': user, 'active_calls': active_calls})
 
         if not counselors_with_counts:
@@ -221,40 +217,34 @@ def submit_client_data():
                 os.remove(audio_file_path)
             return jsonify({'message': 'Failed to determine counselor availability for assignment.'}), 500
 
-
-        # 3 & 4. 대기열 수가 가장 적은 상담사 찾기 (같을 경우 ID가 낮은 순)
-        # active_calls 기준으로 오름차순 정렬, 그 다음 user.id 기준으로 오름차순 정렬
         counselors_with_counts.sort(key=lambda x: (x['active_calls'], x['user'].id))
 
         # 가장 적합한 상담사 선택
-        if counselors_with_counts: # 정렬된 리스트에서 첫 번째 상담사가 가장 적합
+        if counselors_with_counts:
             assigned_counselor_id = counselors_with_counts[0]['user'].id
             current_app.logger.info(f"Assigned to counselor ID: {assigned_counselor_id} with {counselors_with_counts[0]['active_calls']} active calls.")
         else:
-            # 이 경우는 available_counselors는 있었지만, 어떤 이유로 최종 배정할 상담사를 찾지 못한 경우
-            # (이론상으로는 available_counselors가 있다면 이 분기에 도달하지 않아야 함)
             current_app.logger.error("Could not assign to any available counselor after AI analysis.")
             if os.path.exists(audio_file_path):
                 os.remove(audio_file_path)
             return jsonify({'message': 'Could not assign to any available counselor.'}), 500
 
-
         new_call = ClientCall(
             phone_number=phone_number,
             audio_file_path=audio_file_path,
+            transcribed_text=transcribed_text, # 음성 인식 텍스트 저장
             risk_level=risk_level,
-            status='pending', # 초기 상태는 'pending', 상담사가 수락하면 'assigned' 등으로 변경 가능
-            assigned_counselor_id=assigned_counselor_id
+            status='available_for_assignment',  # 'pending' 대신 'available_for_assignment'로 변경
+            assigned_counselor_id=None  # 상담사 배정은 나중에 하도록 변경
         )
         try:
             db.session.add(new_call)
             db.session.commit()
             current_app.logger.info(f"New call (ID: {new_call.id}) submitted and saved to DB.")
             return jsonify({
-                'message': 'Call data submitted successfully and assigned.',
+                'message': 'Call data submitted successfully.',
                 'call_id': new_call.id,
-                'risk_level': risk_level,
-                'assigned_counselor_id': assigned_counselor_id
+                'risk_level': risk_level
             }), 201
         except Exception as e:
             db.session.rollback()
@@ -264,3 +254,43 @@ def submit_client_data():
             return jsonify({'message': 'Failed to submit call data after assignment', 'error': str(e)}), 500
     else:
         return jsonify({'message': 'File type not allowed or no file'}), 400
+
+@client_bp.route('/<int:client_call_id>/previous-reports', methods=['GET'])
+@jwt_required()
+def get_previous_reports(client_call_id):
+    """
+    특정 ClientCall과 같은 전화번호를 가진 이전 소견서들을 반환합니다.
+    """
+    client_call = ClientCall.query.get(client_call_id)
+    if not client_call:
+        return jsonify({"message": "Client call not found"}), 404
+
+    # 같은 전화번호를 가진 다른 ClientCall들을 찾습니다
+    previous_calls = ClientCall.query.filter(
+        ClientCall.phone_number == client_call.phone_number,
+        ClientCall.id != client_call.id  # 현재 통화는 제외
+    ).all()
+
+    previous_reports = []
+    for call in previous_calls:
+        report = ConsultationReport.query.filter_by(client_call_id=call.id).first()
+        if report:
+            previous_reports.append({
+                'id': report.id,
+                'name': report.client_name,
+                'age': report.client_age,
+                'gender': report.client_gender,
+                'phone': call.phone_number,
+                'risk': report.risk_level_recorded,
+                'memo': report.memo_text,
+                'transcribed_text': report.transcribed_text,
+                'created_at': report.created_at.isoformat()
+            })
+
+    # 생성일 기준으로 정렬 (최신순)
+    previous_reports.sort(key=lambda x: x['created_at'], reverse=True)
+
+    return jsonify({
+        'reports': previous_reports,
+        'latest_report': previous_reports[0] if previous_reports else None
+    }), 200

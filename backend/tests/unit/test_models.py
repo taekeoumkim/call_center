@@ -29,7 +29,7 @@ def test_new_client_call(db):
         phone_number='01012345678',
         audio_file_path='/path/to/audio.wav',
         risk_level=1,
-        status='pending',
+        status='available_for_assignment',
         assigned_counselor_id=counselor.id
     )
     db.session.add(call)

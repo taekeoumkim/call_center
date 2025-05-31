@@ -13,6 +13,13 @@ interface Report {
   risk: number;
   memo: string;
   created_at: string;
+  transcribed_text?: string; // Whisper로 인식된 텍스트
+}
+
+// 그룹화된 소견서 인터페이스
+interface GroupedReports {
+  phone: string;
+  reports: Report[];
 }
 
 const MyPage: React.FC = () => {
@@ -20,6 +27,8 @@ const MyPage: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
   // 검색 후 필터링된 소견서 리스트
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
+  // 그룹화된 소견서 리스트
+  const [groupedReports, setGroupedReports] = useState<GroupedReports[]>([]);
   // 검색 조건(이름/전화번호)
   const [searchField, setSearchField] = useState<'name' | 'phone'>('name');
   // 검색어
@@ -55,6 +64,26 @@ const MyPage: React.FC = () => {
         navigate('/');
       });
   }, [navigate, token]);
+
+  // 필터링된 소견서가 변경될 때마다 그룹화
+  useEffect(() => {
+    const grouped = filteredReports.reduce((groups: { [key: string]: Report[] }, report) => {
+      const phone = report.phone;
+      if (!groups[phone]) {
+        groups[phone] = [];
+      }
+      groups[phone].push(report);
+      return groups;
+    }, {});
+
+    // 그룹을 배열로 변환하고 최신 순으로 정렬
+    const sortedGroups = Object.entries(grouped).map(([phone, reports]) => ({
+      phone,
+      reports: reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    })).sort((a, b) => new Date(b.reports[0].created_at).getTime() - new Date(a.reports[0].created_at).getTime());
+
+    setGroupedReports(sortedGroups);
+  }, [filteredReports]);
 
   // 검색 시 호출되는 함수
   const handleSearch = () => {
@@ -169,44 +198,51 @@ const MyPage: React.FC = () => {
           </button>
         </div>
   
-        {/* 테이블 */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border rounded-xl overflow-hidden">
-            <thead>
-              <tr className="bg-blue-100 text-blue-800 text-center">
-                <th className="p-2">이름</th>
-                <th className="p-2">전화번호</th>
-                <th className="p-2">성별</th>
-                <th className="p-2">나이</th>
-                <th className="p-2">자살위험도</th>
-                <th className="p-2">작성일</th>
-                <th className="p-2">소견서</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredReports.map(report => (
-                <tr key={report.id} className="text-center border-t hover:bg-blue-50">
-                  <td className="p-2">{report.name}</td>
-                  <td className="p-2">{report.phone}</td>
-                  <td className="p-2">{report.gender}</td>
-                  <td className="p-2">{report.age}</td>
-                  <td className="p-2">{riskToText(report.risk)}</td>
-                  <td className="p-2">{convertToKST(report.created_at)}</td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => {
-                        setSelectedReport(report);
-                        setShowPopup(true);
-                      }}
-                      className="text-blue-600 underline hover:text-blue-800"
-                    >
-                      조회
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* 그룹화된 테이블 */}
+        <div className="space-y-6">
+          {groupedReports.map(group => (
+            <div key={group.phone} className="border rounded-xl overflow-hidden">
+              <div className="bg-blue-100 p-3 text-blue-800 font-medium">
+                전화번호: {group.phone} (총 {group.reports.length}건)
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-600 text-center">
+                      <th className="p-2">이름</th>
+                      <th className="p-2">성별</th>
+                      <th className="p-2">나이</th>
+                      <th className="p-2">자살위험도</th>
+                      <th className="p-2">작성일</th>
+                      <th className="p-2">소견서</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.reports.map(report => (
+                      <tr key={report.id} className="text-center border-t hover:bg-blue-50">
+                        <td className="p-2">{report.name}</td>
+                        <td className="p-2">{report.gender}</td>
+                        <td className="p-2">{report.age}</td>
+                        <td className="p-2">{riskToText(report.risk)}</td>
+                        <td className="p-2">{convertToKST(report.created_at)}</td>
+                        <td className="p-2">
+                          <button
+                            onClick={() => {
+                              setSelectedReport(report);
+                              setShowPopup(true);
+                            }}
+                            className="text-blue-600 underline hover:text-blue-800"
+                          >
+                            조회
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
       </main>
   
@@ -223,6 +259,10 @@ const MyPage: React.FC = () => {
               <div><strong>자살위험도:</strong> {riskToText(selectedReport.risk)}</div>
               <div><strong>작성일:</strong> {convertToKST(selectedReport.created_at)}</div>
               <div><strong>소견 내용:</strong> {selectedReport.memo}</div>
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <strong>음성 인식 텍스트:</strong>
+                <p className="mt-2 text-gray-600">{selectedReport.transcribed_text}</p>
+              </div>
             </div>
             <div className="text-center mt-6">
               <button

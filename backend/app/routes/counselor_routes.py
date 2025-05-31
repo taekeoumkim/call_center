@@ -154,6 +154,7 @@ def save_report():
     client_age_from_frontend = data.get('age')           # 'age'로 받음
     client_gender_from_frontend = data.get('gender')     # 'gender'으로 받음
     memo_text_from_frontend = data.get('memo')           # 'memo'로 받음
+    transcribed_text_from_frontend = data.get('transcribed_text') # Whisper로 인식된 텍스트
 
     # 필수 필드 검증 (프론트엔드 필드명 기준)
     # client_age, client_gender는 선택 사항일 수 있으므로, 정책에 맞게 조정
@@ -190,6 +191,7 @@ def save_report():
         client_age=client_age_from_frontend,         # DB 필드명은 client_age
         client_gender=client_gender_from_frontend,   # DB 필드명은 client_gender
         memo_text=memo_text_from_frontend,           # DB 필드명은 memo_text
+        transcribed_text=transcribed_text_from_frontend, # Whisper로 인식된 텍스트
         risk_level_recorded=client_call.risk_level 
     )
     try:
@@ -224,13 +226,8 @@ def get_my_reports():
         if search_by == 'name':
             query = query.filter(ConsultationReport.client_name.ilike(f'%{search_term}%'))
         elif search_by == 'phone':
-            # ClientCall 테이블과 조인하여 전화번호 검색
-            # ConsultationReport 모델과 ClientCall 모델이 client_call_id로 관계가 맺어져 있어야 합니다.
-            # (예: ConsultationReport.client_call -> backref='reports' in ClientCall)
-            # 또는 명시적 join 사용
             query = query.join(ClientCall, ClientCall.id == ConsultationReport.client_call_id)\
                          .filter(ClientCall.phone_number.ilike(f'%{search_term}%'))
-
 
     pagination = query.order_by(ConsultationReport.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
     reports = pagination.items
@@ -248,8 +245,8 @@ def get_my_reports():
             'phone': client_call.phone_number if client_call else None, # Report.phone
             'risk': report.risk_level_recorded,         # Report.risk
             'memo': report.memo_text,                   # Report.memo
+            'transcribed_text': report.transcribed_text, # Whisper로 인식된 텍스트
             'created_at': report.created_at.isoformat() # Report.created_at
-            # 'client_call_id'는 프론트에서 현재 직접 사용하지 않으므로 제외하거나 필요시 추가
         }
         reports_data.append(report_item)
         

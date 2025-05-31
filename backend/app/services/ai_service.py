@@ -5,6 +5,7 @@ from transformers import (pipeline,
 )
 import torch
 import librosa
+from flask import current_app
 
 # --- 0. 모델 로드 (애플리케이션 시작 시 또는 첫 호출 시 로드) ---
 

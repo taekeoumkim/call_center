@@ -12,6 +12,20 @@ interface Client {
   id: number;
   phone: string;
   risk: 0 | 1 | 2;  // 자살 위험도 (0: 낮음, 1: 중간, 2: 높음)
+  transcribed_text: string;
+}
+
+// 이전 소견서 인터페이스
+interface PreviousReport {
+  id: number;
+  name: string;
+  age: number;
+  gender: string;
+  phone: string;
+  risk: number;
+  memo: string;
+  transcribed_text: string;
+  created_at: string;
 }
 
 // JWT 토큰 디코딩 결과 인터페이스
@@ -64,6 +78,10 @@ const ClientDetailPage = () => {
   // 로그인한 상담사의 이름
   const [counselorName, setCounselorName] = useState('');
 
+  // 이전 소견서 상태
+  const [previousReports, setPreviousReports] = useState<PreviousReport[]>([]);
+  const [latestReport, setLatestReport] = useState<PreviousReport | null>(null);
+
   // 컴포넌트 마운트 시 실행
   useEffect(() => {
     // 토큰이 없으면 로그인 페이지로 이동
@@ -88,6 +106,24 @@ const ClientDetailPage = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         setClient(res.data);  // 내담자 정보 저장
+
+        // 이전 소견서 요청
+        const reportsRes = await axios.get(`/api/client/${id}/previous-reports`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setPreviousReports(reportsRes.data.reports);
+        setLatestReport(reportsRes.data.latest_report);
+
+        // 최신 소견서가 있으면 입력란에 미리 채워넣기
+        if (reportsRes.data.latest_report) {
+          const latest = reportsRes.data.latest_report;
+          setForm({
+            name: latest.name || '',
+            age: latest.age?.toString() || '',
+            gender: latest.gender || '',
+            note: '',
+          });
+        }
       } catch (err) {
         console.error('내담자 정보 불러오기 실패:', err);
       }
@@ -106,6 +142,18 @@ const ClientDetailPage = () => {
   const handleSave = async () => {
     if (!client) return;
 
+    // 필수 필드 검증
+    const missingFields = [];
+    if (!form.name) missingFields.push('이름');
+    if (!form.age) missingFields.push('나이');
+    if (!form.gender) missingFields.push('성별');
+    if (!form.note) missingFields.push('메모');
+
+    if (missingFields.length > 0) {
+      alert(`다음 항목을 입력해주세요:\n${missingFields.join('\n')}`);
+      return;
+    }
+
     try {
       // 소견서 작성 요청
       await axios.post(
@@ -118,6 +166,7 @@ const ClientDetailPage = () => {
           memo: form.note,
           phone: client.phone,
           risk: client.risk,
+          transcribed_text: client.transcribed_text,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -136,6 +185,11 @@ const ClientDetailPage = () => {
       navigate('/main');
     } catch (err) {
       console.error('저장 실패:', err);
+      if (axios.isAxiosError(err) && err.response) {
+        alert(`저장 실패: ${err.response.data.message || err.message}`);
+      } else {
+        alert('저장 중 오류가 발생했습니다.');
+      }
     }
   };
 
@@ -148,6 +202,46 @@ const ClientDetailPage = () => {
         <h2 className="text-2xl font-bold text-center text-blue-800 mb-6 tracking-tight">
           {counselorName} 상담사님 - 내담자 소견서 작성
         </h2>
+
+        {/* 이전 소견서 목록 */}
+        {previousReports.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-blue-800 mb-4">이전 소견서</h3>
+            <div className="space-y-4">
+              {previousReports.map((report) => (
+                <div key={report.id} className="bg-gray-50 p-4 rounded-xl border border-blue-100">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="font-medium text-gray-700">{report.name}</span>
+                      <span className="text-sm text-gray-500 ml-2">
+                        {report.age}세 / {report.gender}
+                      </span>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      report.risk === 0 ? 'bg-green-100 text-green-800' :
+                      report.risk === 1 ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {report.risk === 0 ? '자살위험도 낮음' :
+                       report.risk === 1 ? '자살위험도 중간' :
+                       '자살위험도 높음'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">{report.memo}</p>
+                  {report.transcribed_text && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                      <p className="text-xs text-gray-500 mb-1">음성 인식 텍스트:</p>
+                      <p className="text-sm text-gray-700">{report.transcribed_text}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-2">
+                    {new Date(report.created_at).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 소견서 작성 폼 */}
         <div className="space-y-6">
