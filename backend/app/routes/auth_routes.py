@@ -10,6 +10,24 @@ from ..models import User, TokenBlocklist
 
 auth_bp = Blueprint('auth', __name__)
 
+def validate_password(password):
+    """비밀번호 유효성 검사"""
+    if len(password) < 8:
+        return False, "비밀번호는 8자 이상이어야 합니다."
+    if not any(c.isalpha() for c in password):
+        return False, "비밀번호는 영문자를 포함해야 합니다."
+    if not any(c.isdigit() for c in password):
+        return False, "비밀번호는 숫자를 포함해야 합니다."
+    return True, ""
+
+def validate_username(username):
+    """아이디 유효성 검사"""
+    if not (4 <= len(username) <= 12):
+        return False, "아이디는 4~12자 사이여야 합니다."
+    if not username.isalnum():
+        return False, "아이디는 영문자와 숫자만 사용할 수 있습니다."
+    return True, ""
+
 @auth_bp.route('/register', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -17,11 +35,23 @@ def signup():
     password = data.get('password')
     name = data.get('name')
 
+    # 필수 필드 검증
     if not username or not password or not name:
-        return jsonify({'message': 'Username, password, and name are required'}), 400
+        return jsonify({'message': '아이디, 비밀번호, 이름은 필수 입력 항목입니다.'}), 400
 
+    # 아이디 유효성 검사
+    is_valid_username, username_error = validate_username(username)
+    if not is_valid_username:
+        return jsonify({'message': username_error}), 400
+
+    # 비밀번호 유효성 검사
+    is_valid_password, password_error = validate_password(password)
+    if not is_valid_password:
+        return jsonify({'message': password_error}), 400
+
+    # 아이디 중복 검사
     if User.query.filter_by(username=username).first():
-        return jsonify({'message': 'Username already exists'}), 409
+        return jsonify({'message': '이미 사용 중인 아이디입니다.'}), 409
 
     hashed_password = generate_password_hash(password)
     new_user = User(username=username, password_hash=hashed_password, name=name, status='offline')
@@ -29,10 +59,10 @@ def signup():
     try:
         db.session.add(new_user)
         db.session.commit()
-        return jsonify({'message': 'User created successfully'}), 201
+        return jsonify({'message': '회원가입이 완료되었습니다.'}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Failed to create user', 'error': str(e)}), 500
+        return jsonify({'message': '회원가입 중 오류가 발생했습니다.', 'error': str(e)}), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():

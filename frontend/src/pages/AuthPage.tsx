@@ -43,7 +43,7 @@ const AuthPage: React.FC = () => {
 
   // 입력값 유효성 검사 함수 (회원가입 시에만 적용됨)
   const validateInput = (): boolean => {
-    const { username, password, confirmPassword } = formData;
+    const { name, username, password, confirmPassword } = formData;
 
     if (isLoginMode) {
       // 로그인 모드일 경우 별도 유효성 검사 없이 통과
@@ -51,16 +51,38 @@ const AuthPage: React.FC = () => {
     }
 
     // 회원가입 모드일 경우 유효성 검사 진행
-    const usernameRegex = /^[a-zA-Z0-9]{4,12}$/; // 아이디: 영문+숫자, 4~12자
-    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/; // 비밀번호: 영문+숫자 포함, 8자 이상
+    if (!name.trim()) {
+      setError('이름을 입력해주세요.');
+      return false;
+    }
 
-    if (!usernameRegex.test(username)) {
+    if (!username.trim()) {
+      setError('아이디를 입력해주세요.');
+      return false;
+    }
+
+    if (!/^[a-zA-Z0-9]{4,12}$/.test(username)) {
       setError('아이디는 4~12자의 영문 또는 숫자여야 합니다.');
       return false;
     }
 
-    if (!passwordRegex.test(password)) {
-      setError('비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.');
+    if (!password) {
+      setError('비밀번호를 입력해주세요.');
+      return false;
+    }
+
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.');
+      return false;
+    }
+
+    if (!/[a-zA-Z]/.test(password)) {
+      setError('비밀번호는 영문자를 포함해야 합니다.');
+      return false;
+    }
+
+    if (!/\d/.test(password)) {
+      setError('비밀번호는 숫자를 포함해야 합니다.');
       return false;
     }
 
@@ -75,7 +97,13 @@ const AuthPage: React.FC = () => {
 
   // 입력값 변경 핸들러
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    
+    // 입력값이 변경될 때마다 에러 메시지 초기화
+    if (error) {
+      setError('');
+    }
   };
 
   // 폼 제출 핸들러
