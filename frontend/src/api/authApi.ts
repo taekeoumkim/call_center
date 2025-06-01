@@ -49,12 +49,20 @@ export async function registerCounselor(data: {
 
   try {
     logEvent('회원가입 시도', { username, name });
-    await axios.post('/api/auth/register', { name, username, password });
+    console.log('회원가입 요청 데이터:', { name, username, password: '***' });
+    const response = await axios.post('/api/auth/register', { name, username, password });
+    console.log('회원가입 응답:', response.data);
     logEvent('회원가입 성공', { username });
   } catch (error: any) {
     logEvent('회원가입 실패', { 
       error: error instanceof Error ? error.message : 'Unknown error',
       response: error.response?.data 
+    });
+    console.error('회원가입 상세 오류:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers
     });
     // 서버가 명시적인 에러 메시지를 보낸 경우 (백엔드에서 {"error": "..."} 또는 {"message": "..."} 형식으로 응답)
     if (error.response && error.response.data) {

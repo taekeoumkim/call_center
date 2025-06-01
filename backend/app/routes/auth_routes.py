@@ -10,7 +10,10 @@ from ..models import User, TokenBlocklist
 
 auth_bp = Blueprint('auth', __name__)
 
-def log_event(event: str, data: dict = None):
+def log_event(event, data=None):
+    """인증 관련 이벤트를 로깅합니다."""
+    if data and 'name' in data:
+        data['user_name'] = data.pop('name')
     current_app.logger.info(f"[Auth] {event}", extra=data if data else {})
 
 def validate_password(password):
@@ -33,43 +36,32 @@ def validate_username(username):
 
 @auth_bp.route('/register', methods=['POST'])
 def signup():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    name = data.get('name')
-
-    log_event('회원가입 시도', {'username': username, 'name': name})
-
-    if not username or not password or not name:
-        log_event('회원가입 실패 - 필수 입력 누락', {'username': username, 'name': name})
-        return jsonify({'message': '아이디, 비밀번호, 이름은 필수 입력 항목입니다.'}), 400
-
-    is_valid_username, username_error = validate_username(username)
-    if not is_valid_username:
-        log_event('회원가입 실패 - 아이디 유효성 검사 실패', {'username': username, 'error': username_error})
-        return jsonify({'message': username_error}), 400
-
-    is_valid_password, password_error = validate_password(password)
-    if not is_valid_password:
-        log_event('회원가입 실패 - 비밀번호 유효성 검사 실패', {'username': username, 'error': password_error})
-        return jsonify({'message': password_error}), 400
-
-    if User.query.filter_by(username=username).first():
-        log_event('회원가입 실패 - 아이디 중복', {'username': username})
-        return jsonify({'message': '이미 사용 중인 아이디입니다.'}), 409
-
-    hashed_password = generate_password_hash(password)
-    new_user = User(username=username, password_hash=hashed_password, name=name, status='offline')
-
+    """회원가입 엔드포인트"""
     try:
-        db.session.add(new_user)
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        name = data.get('name')
+        
+        if not all([username, password, name]):
+            return jsonify({'error': '모든 필드를 입력해주세요.'}), 400
+            
+        if User.query.filter_by(username=username).first():
+            return jsonify({'error': '이미 사용 중인 아이디입니다.'}), 400
+            
+        log_event('회원가입 시도', {'username': username, 'user_name': name})
+        
+        user = User(username=username, name=name)
+        user.set_password(password)
+        db.session.add(user)
         db.session.commit()
-        log_event('회원가입 성공', {'username': username, 'name': name})
+        
+        log_event('회원가입 성공', {'username': username, 'user_name': name})
         return jsonify({'message': '회원가입이 완료되었습니다.'}), 201
+        
     except Exception as e:
-        db.session.rollback()
-        log_event('회원가입 실패 - DB 오류', {'username': username, 'error': str(e)})
-        return jsonify({'message': '회원가입 중 오류가 발생했습니다.', 'error': str(e)}), 500
+        log_event('회원가입 실패', {'error': str(e)})
+        return jsonify({'error': '회원가입 중 오류가 발생했습니다.'}), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -81,13 +73,13 @@ def login():
 
     if not username or not password:
         log_event('로그인 실패 - 필수 입력 누락', {'username': username})
-        return jsonify({'message': 'Username and password are required'}), 400
+        return jsonify({'error': '아이디와 비밀번호를 입력해주세요.'}), 400
 
     user = User.query.filter_by(username=username).first()
 
     if not user or not check_password_hash(user.password_hash, password):
         log_event('로그인 실패 - 인증 실패', {'username': username})
-        return jsonify({'message': 'Invalid username or password'}), 401
+        return jsonify({'error': '아이디 또는 비밀번호가 올바르지 않습니다.'}), 401
 
     access_token = create_access_token(identity=user.id, fresh=True)
     refresh_token = create_refresh_token(identity=user.id)
@@ -97,7 +89,7 @@ def login():
         db.session.commit()
         log_event('로그인 성공', {'username': username, 'user_id': user.id})
         return jsonify({
-            'message': 'Login successful',
+            'message': '로그인 성공',
             'access_token': access_token,
             'refresh_token': refresh_token,
             'user_id': user.id,
@@ -107,7 +99,7 @@ def login():
     except Exception as e:
         db.session.rollback()
         log_event('로그인 실패 - 상태 업데이트 오류', {'username': username, 'error': str(e)})
-        return jsonify({'message': 'Login successful, but failed to update user status', 'error': str(e)}), 500
+        return jsonify({'error': '로그인은 성공했으나 사용자 상태 업데이트에 실패했습니다.'}), 500
 
 @auth_bp.route('/logout', methods=['POST'])
 @jwt_required(verify_type=False)
@@ -122,7 +114,7 @@ def logout():
     existing_token = TokenBlocklist.query.filter_by(jti=jti).one_or_none()
     if existing_token:
         log_event('로그아웃 실패 - 이미 만료된 토큰', {'user_id': current_user_id, 'token_type': token_type})
-        return jsonify({"message": f"Token already revoked ({token_type} token)"}), 200
+        return jsonify({"message": "이미 만료된 토큰입니다."}), 200
 
     db_token = TokenBlocklist(jti=jti, created_at=datetime.now(timezone.utc))
 
@@ -133,11 +125,11 @@ def logout():
             user.status = 'offline'
         db.session.commit()
         log_event('로그아웃 성공', {'user_id': current_user_id, 'token_type': token_type})
-        return jsonify({"message": f"Successfully logged out. {token_type.capitalize()} token revoked."}), 200
+        return jsonify({"message": "로그아웃되었습니다."}), 200
     except Exception as e:
         db.session.rollback()
         log_event('로그아웃 실패 - DB 오류', {'user_id': current_user_id, 'error': str(e)})
-        return jsonify({"message": "Failed to logout", "error": str(e)}), 500
+        return jsonify({"error": "로그아웃 중 오류가 발생했습니다."}), 500
 
 @auth_bp.route('/refresh', methods=['POST'])
 @jwt_required(refresh=True)
@@ -151,4 +143,4 @@ def refresh_access_token():
         return jsonify(access_token=new_access_token), 200
     except Exception as e:
         log_event('토큰 갱신 실패', {'user_id': current_user_id, 'error': str(e)})
-        return jsonify({"message": "Failed to refresh token", "error": str(e)}), 500
+        return jsonify({"error": "토큰 갱신에 실패했습니다."}), 500

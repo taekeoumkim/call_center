@@ -12,6 +12,66 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env/
+.venv.bak/
+venv.bak/
+ENV.bak/
+env.bak/
+
+# Encryption related files
+**/keys/
+**/*.pem
+**/*.key
+**/*.pub
+**/*.priv
+**/*.crt
+**/*.csr
+**/*.srl
+**/*.p12
+**/*.pfx
+**/*.p7b
+**/*.p7c
+**/*.p7m
+**/*.p7s
+**/*.p8
+**/*.p8e
+**/*.p8p
+**/*.p8s
+**/*.p8x
+**/*.p8y
+**/*.p8z
+**/*.p8a
+**/*.p8b
+**/*.p8c
+**/*.p8d
+**/*.p8e
+**/*.p8f
+**/*.p8g
+**/*.p8h
+**/*.p8i
+**/*.p8j
+**/*.p8k
+**/*.p8l
+**/*.p8m
+**/*.p8n
+**/*.p8o
+**/*.p8p
+**/*.p8q
+**/*.p8r
+**/*.p8s
+**/*.p8t
+**/*.p8u
+**/*.p8v
+**/*.p8w
+**/*.p8x
+**/*.p8y
+**/*.p8z
+
 # IDE / Editor specific
 .vscode/
 .idea/
@@ -77,6 +137,29 @@ backend/app/routes/__pycache__/
 backend/app/services/__pycache__/
 backend/*.py[cod]
 backend/*$py.class
+
+# Encryption related files
+backend/app/keys/
+backend/app/keys/*.pem
+backend/app/keys/*.key
+backend/app/keys/*.pub
+backend/app/keys/*.priv
+backend/app/keys/*.crt
+backend/app/keys/*.csr
+backend/app/keys/*.srl
+backend/app/keys/*.p12
+backend/app/keys/*.pfx
+backend/app/keys/*.p7b
+backend/app/keys/*.p7c
+backend/app/keys/*.p7m
+backend/app/keys/*.p7s
+backend/app/keys/*.p8
+backend/app/keys/*.p8e
+backend/app/keys/*.p8p
+backend/app/keys/*.p8s
+backend/app/keys/*.p8x
+backend/app/keys/*.p8y
+backend/app/keys/*.p8z
 
 # C extensions
 backend/*.so

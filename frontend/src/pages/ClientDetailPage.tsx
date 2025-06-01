@@ -142,15 +142,9 @@ const ClientDetailPage = () => {
   const handleSave = async () => {
     if (!client) return;
 
-    // 필수 필드 검증
-    const missingFields = [];
-    if (!form.name) missingFields.push('이름');
-    if (!form.age) missingFields.push('나이');
-    if (!form.gender) missingFields.push('성별');
-    if (!form.note) missingFields.push('메모');
-
-    if (missingFields.length > 0) {
-      alert(`다음 항목을 입력해주세요:\n${missingFields.join('\n')}`);
+    // 필수 필드 검증 (메모만 필수)
+    if (!form.note) {
+      alert('상담 메모를 입력해주세요.');
       return;
     }
 
@@ -160,9 +154,9 @@ const ClientDetailPage = () => {
         '/api/counselor/report/save',
         {
           client_id: client.id,
-          name: form.name,
-          age: parseInt(form.age),
-          gender: form.gender,
+          name: form.name || '미상',
+          age: form.age ? parseInt(form.age) : 0,
+          gender: form.gender || '미상',
           memo: form.note,
           phone: client.phone,
           risk: client.risk,
@@ -254,7 +248,7 @@ const ClientDetailPage = () => {
               value={form.name}
               onChange={handleChange}
               className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
-              placeholder="내담자 이름 입력"
+              placeholder="입력하지 않으면 '미상'으로 저장됩니다"
             />
           </div>
 
@@ -267,7 +261,7 @@ const ClientDetailPage = () => {
               value={form.age}
               onChange={handleChange}
               className="w-full border border-blue-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder-gray-400 text-sm"
-              placeholder="내담자 나이 입력"
+              placeholder="입력하지 않으면 '0'으로 저장됩니다"
             />
           </div>
 
@@ -289,6 +283,7 @@ const ClientDetailPage = () => {
                 </label>
               ))}
             </div>
+            <p className="text-xs text-gray-500 mt-1">선택하지 않으면 '미상'으로 저장됩니다</p>
           </div>
 
           {/* 전화번호 표시 */}

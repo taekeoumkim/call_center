@@ -273,16 +273,27 @@ const MainPage = () => {
         <section>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3 sm:gap-0">
             <h3 className="text-xl sm:text-2xl font-bold text-blue-800">내담자 대기열</h3>
-            <button
-              onClick={() => {
-                if (window.confirm('정말 대기열을 리셋 하시겠습니까?')) {
-                  resetQueue();
-                }
-              }}
-              className="text-sm px-4 py-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
-            >
-              대기열 리셋
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchQueue}
+                className="text-sm px-4 py-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition flex items-center gap-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                새로고침
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('정말 대기열을 리셋 하시겠습니까?')) {
+                    resetQueue();
+                  }
+                }}
+                className="text-sm px-4 py-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
+              >
+                대기열 리셋
+              </button>
+            </div>
           </div>
   
           <div className="relative">

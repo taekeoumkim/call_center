@@ -1,7 +1,7 @@
 # backend/app/routes/client_routes.py
 import os
 import uuid
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, asc
@@ -9,6 +9,7 @@ from .. import db
 from ..models import ClientCall, User, ConsultationReport
 from ..services import ai_service
 from ..config import Config
+from ..utils.hybrid_encryption import HybridEncryption
 
 client_bp = Blueprint('client', __name__)
 
@@ -22,16 +23,19 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def log_event(event: str, data: dict = None):
+    if data and 'name' in data:
+        data = {**data, 'user_name': data.pop('name')}
+    current_app.logger.info(f"[Client] {event}", extra=data if data else {})
+
 @client_bp.route('/<int:client_call_id>', methods=['GET'])
-@jwt_required() # 인증된 사용자만 접근 가능
+@jwt_required()
 def get_client_detail(client_call_id):
-    """
-    특정 ClientCall(내담자 통화)의 상세 정보를 반환합니다.
-    프론트엔드의 ClientDetailPage에서 사용됩니다.
-    """
+    log_event('상세 정보 조회 시도', {'client_call_id': client_call_id})
     client_call = ClientCall.query.get(client_call_id)
 
     if not client_call:
+        log_event('상세 정보 조회 실패 - 찾을 수 없음', {'client_call_id': client_call_id})
         return jsonify({"message": "Client call not found"}), 404
 
     # 프론트엔드 Client 인터페이스에 맞게 데이터 구성
@@ -50,14 +54,14 @@ def get_client_detail(client_call_id):
         # "received_at": client_call.received_at.isoformat() if client_call.received_at else None,
     }
 
+    log_event('상세 정보 조회 성공', {'client_call_id': client_call_id})
     return jsonify(client_data), 200
 
 @client_bp.route('/queue', methods=['GET'])
 @jwt_required()
 def get_waiting_queue():
     try:
-        current_app.logger.debug("Fetching waiting queue...")
-        # status가 'pending' 또는 'available_for_assignment'인 ClientCall들을 risk_level 내림차순, received_at 오름차순으로 정렬
+        log_event('대기열 조회 시도')
         waiting_calls = db.session.query(ClientCall)\
                                   .filter(ClientCall.status.in_(['pending', 'available_for_assignment']))\
                                   .order_by(db.desc(ClientCall.risk_level), db.asc(ClientCall.received_at))\
@@ -71,40 +75,38 @@ def get_waiting_queue():
                     'phone': call.phone_number,
                     'risk': call.risk_level, # 위험도 값 그대로 사용 (0, 1, 2)
                 })
-            current_app.logger.debug(f"Found {len(client_list_for_frontend)} calls in queue.")
+            log_event('대기열 조회 성공', {'count': len(client_list_for_frontend)})
         else:
-            current_app.logger.debug("No calls found in pending queue.")
+            log_event('대기열 조회 성공 - 대기 중인 통화 없음')
         
         return jsonify(clients=client_list_for_frontend), 200
 
     except Exception as e:
-        current_app.logger.error(f"Error fetching waiting queue: {str(e)}")
+        log_event('대기열 조회 실패', {'error': str(e)})
         return jsonify({"message": "Failed to fetch waiting queue", "error": str(e)}), 500
     
 @client_bp.route('/queue/reset', methods=['DELETE'])
 @jwt_required()
 def reset_client_queue():
     try:
-        current_app.logger.info("Attempting to reset client queue...")
-
-        # 'pending' 또는 'available_for_assignment' 상태인 모든 통화의 상태를 'cancelled' 또는 'archived'로 변경
+        log_event('대기열 초기화 시도')
         calls_to_reset = ClientCall.query.filter(ClientCall.status.in_(['pending', 'available_for_assignment'])).all()
         num_reset = len(calls_to_reset)
+        
         for call in calls_to_reset:
-            call.status = 'cancelled_by_reset' # 또는 'archived', 'aborted' 등 적절한 상태명
-            # call.assigned_counselor_id = None # 배정 정보도 초기화할 수 있음
+            call.status = 'cancelled_by_reset'
         
         if num_reset > 0:
             db.session.commit()
-            current_app.logger.info(f"{num_reset} pending calls were marked as 'cancelled_by_reset'.")
+            log_event('대기열 초기화 성공', {'reset_count': num_reset})
         else:
-            current_app.logger.info("No pending calls found to reset.")
+            log_event('대기열 초기화 성공 - 초기화할 통화 없음')
 
         return jsonify({'message': f'Client queue reset successfully. {num_reset} calls affected.'}), 200
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error resetting client queue: {str(e)}")
+        log_event('대기열 초기화 실패', {'error': str(e)})
         return jsonify({"message": "Failed to reset client queue", "error": str(e)}), 500
     
 @client_bp.route('/queue/delete', methods=['POST'])
@@ -113,145 +115,147 @@ def delete_client_from_queue():
     data = request.get_json()
     client_id_to_delete = data.get('client_id')
 
-    if client_id_to_delete is None: # client_id가 없는 경우
+    if client_id_to_delete is None:
+        log_event('대기열에서 삭제 실패 - client_id 누락')
         return jsonify({"message": "client_id is required in the request body"}), 400
 
     try:
         client_call_id = int(client_id_to_delete)
     except ValueError:
+        log_event('대기열에서 삭제 실패 - 잘못된 client_id 형식', {'client_id': client_id_to_delete})
         return jsonify({"message": "client_id must be an integer"}), 400
 
     call_to_modify = ClientCall.query.get(client_call_id)
 
     if not call_to_modify:
-        current_app.logger.warn(f"Attempted to delete client_id {client_call_id} from queue, but it was not found.")
+        log_event('대기열에서 삭제 실패 - 찾을 수 없음', {'client_call_id': client_call_id})
         return jsonify({"message": f"Client call with ID {client_call_id} not found."}), 404
 
-    current_app.logger.info(f"Request to remove client_id {client_call_id} from queue. Current status: {call_to_modify.status}")
+    log_event('대기열에서 삭제 시도', {'client_call_id': client_call_id, 'current_status': call_to_modify.status})
 
-    # 이미 'completed' 상태라면 (소견서 저장 시 이미 변경됨), 특별한 추가 작업 없이 성공 응답
     if call_to_modify.status == 'completed':
+        log_event('대기열에서 삭제 성공 - 이미 완료됨', {'client_call_id': client_call_id})
         return jsonify({"message": f"Client call {client_call_id} is already completed. No further action needed for queue removal."}), 200
     
-    # 만약 'pending', 'available_for_assignment' 또는 'assigned' 상태에서 이 API가 호출되었다면 (예상치 못한 상황),
-    # 'completed' 또는 다른 적절한 상태로 변경할 수 있습니다.
     if call_to_modify.status in ['pending', 'available_for_assignment', 'assigned']:
         call_to_modify.status = 'completed_manual_dequeue'
-        # call_to_modify.assigned_counselor_id = None # 배정 정보 초기화는 소견서 작성 상담사가 있으므로 불필요할 수 있음
 
     try:
         db.session.commit()
-        current_app.logger.info(f"Client call {client_call_id} processed for queue removal (or was already completed).")
+        log_event('대기열에서 삭제 성공', {'client_call_id': client_call_id})
         return jsonify({"message": f"Client call {client_call_id} successfully processed for queue removal."}), 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error processing client call {client_call_id} for queue removal: {str(e)}")
+        log_event('대기열에서 삭제 실패', {'client_call_id': client_call_id, 'error': str(e)})
         return jsonify({"message": "Failed to process client call for queue removal", "error": str(e)}), 500
 
 @client_bp.route('/submit', methods=['POST'])
 def submit_client_data():
     if 'audio' not in request.files:
+        log_event('통화 제출 실패 - 오디오 파일 누락')
         return jsonify({'message': 'No audio file part'}), 400
+    
     audio_file = request.files['audio']
     phone_number = request.form.get('phoneNumber')
 
     if not phone_number:
+        log_event('통화 제출 실패 - 전화번호 누락')
         return jsonify({'message': 'Phone number is required'}), 400
     if audio_file.filename == '':
+        log_event('통화 제출 실패 - 파일명 누락')
         return jsonify({'message': 'No selected audio file'}), 400
 
     if audio_file and allowed_file(audio_file.filename):
-        original_filename = secure_filename(audio_file.filename)
-        unique_filename = str(uuid.uuid4()) + "_" + original_filename
-        audio_file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
-        audio_file.save(audio_file_path)
-        current_app.logger.info(f"Audio file saved to: {audio_file_path}")
-
-        # 음성 인식 및 위험도 분석
-        transcribed_text = ai_service.speech_to_text(audio_file_path)
-        risk_level = ai_service.predict_suicide_risk(transcribed_text) if transcribed_text else 0
-
-        if risk_level is None:
-            current_app.logger.error(f"AI risk analysis failed for {audio_file_path}. Assigning default risk level 0.")
-            risk_level = 0
-        else:
-            current_app.logger.info(f"AI risk analysis completed for {audio_file_path}. Risk level: {risk_level}")
-
-        # --- 상담사 배정 로직 ---
-        assigned_counselor_id = None
-
-        # 1. 'available' 상태인 상담사 목록 가져오기
-        available_counselors = User.query.filter_by(status='available').all()
-
-        if not available_counselors:
-            if os.path.exists(audio_file_path):
-                os.remove(audio_file_path)
-            return jsonify({'message': 'No available counselors at the moment. Please try again later.'}), 503
-
-        # 2. 각 상담사별 현재 활성 대기열 수 계산
-        subquery = db.session.query(
-            ClientCall.assigned_counselor_id,
-            func.count(ClientCall.id).label('active_calls')
-        ).filter(
-            ClientCall.status.in_(['pending', 'assigned'])
-        ).group_by(
-            ClientCall.assigned_counselor_id
-        ).subquery()
-
-        counselor_call_counts_query = db.session.query(
-            User,
-            subquery.c.active_calls
-        ).outerjoin(
-            subquery, User.id == subquery.c.assigned_counselor_id
-        ).filter(
-            User.status == 'available'
-        )
-        
-        counselors_with_counts = []
-        for user, count in counselor_call_counts_query.all():
-            active_calls = count if count is not None else 0
-            counselors_with_counts.append({'user': user, 'active_calls': active_calls})
-
-        if not counselors_with_counts:
-            if os.path.exists(audio_file_path):
-                os.remove(audio_file_path)
-            return jsonify({'message': 'Failed to determine counselor availability for assignment.'}), 500
-
-        counselors_with_counts.sort(key=lambda x: (x['active_calls'], x['user'].id))
-
-        # 가장 적합한 상담사 선택
-        if counselors_with_counts:
-            assigned_counselor_id = counselors_with_counts[0]['user'].id
-            current_app.logger.info(f"Assigned to counselor ID: {assigned_counselor_id} with {counselors_with_counts[0]['active_calls']} active calls.")
-        else:
-            current_app.logger.error("Could not assign to any available counselor after AI analysis.")
-            if os.path.exists(audio_file_path):
-                os.remove(audio_file_path)
-            return jsonify({'message': 'Could not assign to any available counselor.'}), 500
-
-        new_call = ClientCall(
-            phone_number=phone_number,
-            audio_file_path=audio_file_path,
-            transcribed_text=transcribed_text, # 음성 인식 텍스트 저장
-            risk_level=risk_level,
-            status='available_for_assignment',  # 'pending' 대신 'available_for_assignment'로 변경
-            assigned_counselor_id=None  # 상담사 배정은 나중에 하도록 변경
-        )
         try:
-            db.session.add(new_call)
-            db.session.commit()
-            current_app.logger.info(f"New call (ID: {new_call.id}) submitted and saved to DB.")
-            return jsonify({
-                'message': 'Call data submitted successfully.',
-                'call_id': new_call.id,
-                'risk_level': risk_level
-            }), 201
+            # 파일 데이터 읽기
+            file_data = audio_file.read()
+            
+            # 하이브리드 암호화 적용
+            hybrid_encryption = HybridEncryption()
+            nonce_for_file, encrypted_file_content, encrypted_dek_trad, pqc_kem_ciphertext, encrypted_dek_by_pqc_shared_secret, pqc_secret_key = hybrid_encryption.encrypt_file_hybrid(file_data)
+            
+            # 암호화된 데이터를 하나의 파일로 저장
+            original_filename = secure_filename(audio_file.filename)
+            unique_filename = str(uuid.uuid4()) + "_" + original_filename
+            audio_file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+            
+            with open(audio_file_path, 'wb') as f:
+                # 암호화된 데이터를 순서대로 저장
+                f.write(nonce_for_file)  # 12 bytes
+                f.write(encrypted_file_content)  # variable
+                f.write(encrypted_dek_trad)  # 384 bytes for RSA-3072
+                f.write(pqc_kem_ciphertext)  # variable
+                f.write(encrypted_dek_by_pqc_shared_secret)  # variable
+                f.write(pqc_secret_key)  # PQC secret key 추가
+            
+            log_event('오디오 파일 암호화 및 저장 성공', {
+                'file_path': audio_file_path,
+                'nonce_size': len(nonce_for_file),
+                'content_size': len(encrypted_file_content),
+                'dek_trad_size': len(encrypted_dek_trad),
+                'kem_ciphertext_size': len(pqc_kem_ciphertext),
+                'dek_pqc_size': len(encrypted_dek_by_pqc_shared_secret),
+                'pqc_secret_key_size': len(pqc_secret_key)
+            })
+
+            try:
+                # 음성 인식 및 위험도 분석을 위해 임시로 복호화
+                decrypted_data = hybrid_encryption.decrypt_file_hybrid(
+                    nonce_for_file, encrypted_file_content,
+                    encrypted_dek_trad, pqc_kem_ciphertext,
+                    encrypted_dek_by_pqc_shared_secret, pqc_secret_key
+                )
+                
+                # 임시 파일로 저장하여 처리
+                temp_file_path = os.path.join(UPLOAD_FOLDER, f"temp_{unique_filename}")
+                with open(temp_file_path, 'wb') as f:
+                    f.write(decrypted_data)
+                
+                transcribed_text = ai_service.speech_to_text(temp_file_path)
+                risk_level = ai_service.predict_suicide_risk(transcribed_text) if transcribed_text else 0
+                
+                # 임시 파일 삭제
+                os.remove(temp_file_path)
+
+                if risk_level is None:
+                    log_event('AI 위험도 분석 실패', {'file_path': audio_file_path})
+                    risk_level = 0
+                else:
+                    log_event('AI 위험도 분석 성공', {'file_path': audio_file_path, 'risk_level': risk_level})
+
+            except Exception as e:
+                log_event('파일 복호화 실패', {'error': str(e), 'file_path': audio_file_path})
+                # 복호화 실패 시에도 기본값으로 진행
+                transcribed_text = None
+                risk_level = 0
+
+            # 단일 대기열 방식으로 변경
+            new_call = ClientCall(
+                phone_number=phone_number,
+                audio_file_path=audio_file_path,
+                transcribed_text=transcribed_text,
+                risk_level=risk_level,
+                status='pending',  # 단순히 pending 상태로 설정
+                assigned_counselor_id=None  # 상담사 배정은 나중에
+            )
+            try:
+                db.session.add(new_call)
+                db.session.commit()
+                log_event('통화 제출 성공', {'call_id': new_call.id, 'risk_level': risk_level})
+                return jsonify({
+                    'message': 'Call data submitted successfully.',
+                    'call_id': new_call.id,
+                    'risk_level': risk_level
+                }), 201
+            except Exception as e:
+                db.session.rollback()
+                log_event('통화 제출 실패', {'call_id': new_call.id, 'error': str(e)})
+                if os.path.exists(audio_file_path):
+                    os.remove(audio_file_path)
+                return jsonify({'message': 'Failed to submit call data', 'error': str(e)}), 500
         except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error saving new call to DB for {audio_file_path}")
-            if os.path.exists(audio_file_path):
-                os.remove(audio_file_path)
-            return jsonify({'message': 'Failed to submit call data after assignment', 'error': str(e)}), 500
+            log_event('파일 처리 중 오류 발생', {'error': str(e)})
+            return jsonify({'message': 'Error processing file', 'error': str(e)}), 500
     else:
         return jsonify({'message': 'File type not allowed or no file'}), 400
 
@@ -294,3 +298,92 @@ def get_previous_reports(client_call_id):
         'reports': previous_reports,
         'latest_report': previous_reports[0] if previous_reports else None
     }), 200
+
+@client_bp.route('/audio/<int:client_call_id>', methods=['GET'])
+@jwt_required()
+def get_audio_file(client_call_id):
+    """암호화된 오디오 파일을 복호화하여 재생"""
+    try:
+        client_call = ClientCall.query.get(client_call_id)
+        if not client_call:
+            log_event('오디오 파일 조회 실패 - 통화 찾을 수 없음', {'client_call_id': client_call_id})
+            return jsonify({"message": "Client call not found"}), 404
+
+        if not os.path.exists(client_call.audio_file_path):
+            log_event('오디오 파일 조회 실패 - 파일 찾을 수 없음', {'client_call_id': client_call_id, 'file_path': client_call.audio_file_path})
+            return jsonify({"message": "Audio file not found"}), 404
+
+        # 암호화된 파일 읽기
+        with open(client_call.audio_file_path, 'rb') as f:
+            encrypted_data = f.read()
+
+        # 암호화된 데이터 파싱
+        # 각 부분의 크기를 계산
+        nonce_size = 12  # AES-GCM nonce 크기
+        rsa_size = 384   # RSA-3072 암호문 크기
+        kem_size = 768   # Kyber512의 KEM 암호문 크기
+        secret_key_size = 1632  # Kyber512의 secret key 크기
+        
+        # 각 부분 추출
+        nonce_for_file = encrypted_data[:nonce_size]
+        remaining_data = encrypted_data[nonce_size:]
+        
+        # RSA 암호문 추출 (마지막 384바이트)
+        encrypted_dek_trad = remaining_data[-rsa_size:]
+        remaining_data = remaining_data[:-rsa_size]
+        
+        # PQC KEM 암호문 추출 (마지막 768바이트)
+        pqc_kem_ciphertext = remaining_data[-kem_size:]
+        remaining_data = remaining_data[:-kem_size]
+        
+        # PQC secret key 추출 (마지막 1632바이트)
+        pqc_secret_key = remaining_data[-secret_key_size:]
+        remaining_data = remaining_data[:-secret_key_size]
+        
+        # 나머지는 암호화된 파일 내용과 PQC로 암호화된 DEK 패키지
+        encrypted_file_content = remaining_data[:-60]  # 마지막 60바이트는 PQC DEK 패키지
+        encrypted_dek_by_pqc_shared_secret = remaining_data[-60:]
+
+        log_event('암호화된 파일 파싱 성공', {
+            'nonce_size': len(nonce_for_file),
+            'content_size': len(encrypted_file_content),
+            'dek_trad_size': len(encrypted_dek_trad),
+            'kem_ciphertext_size': len(pqc_kem_ciphertext),
+            'dek_pqc_size': len(encrypted_dek_by_pqc_shared_secret),
+            'pqc_secret_key_size': len(pqc_secret_key),
+            'total_size': len(encrypted_data)
+        })
+
+        # 하이브리드 복호화
+        hybrid_encryption = HybridEncryption()
+        decrypted_data = hybrid_encryption.decrypt_file_hybrid(
+            nonce_for_file, encrypted_file_content,
+            encrypted_dek_trad, pqc_kem_ciphertext,
+            encrypted_dek_by_pqc_shared_secret, pqc_secret_key
+        )
+
+        # 임시 파일로 저장
+        temp_file_path = os.path.join(UPLOAD_FOLDER, f"temp_play_{client_call_id}.webm")
+        with open(temp_file_path, 'wb') as f:
+            f.write(decrypted_data)
+
+        # 파일 전송
+        response = send_file(
+            temp_file_path,
+            mimetype='audio/webm',
+            as_attachment=False
+        )
+
+        # 임시 파일 삭제를 위한 콜백 설정
+        @response.call_on_close
+        def cleanup():
+            try:
+                os.remove(temp_file_path)
+            except Exception as e:
+                log_event('임시 파일 삭제 실패', {'error': str(e)})
+
+        return response
+
+    except Exception as e:
+        log_event('오디오 파일 재생 실패', {'client_call_id': client_call_id, 'error': str(e)})
+        return jsonify({"message": "Failed to play audio file", "error": str(e)}), 500

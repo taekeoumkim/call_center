@@ -128,10 +128,12 @@ def create_app(config_class=Config):
     from .routes.auth_routes import auth_bp
     from .routes.client_routes import client_bp
     from .routes.counselor_routes import counselor_bp
+    from .routes.file_routes import file_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(client_bp, url_prefix='/api/client')
     app.register_blueprint(counselor_bp, url_prefix='/api/counselor')
+    app.register_blueprint(file_bp, url_prefix='/api/files')
 
 
     # --- 프론트엔드 앱 제공 라우트 (가장 마지막에 등록하는 것이 좋음) ---
