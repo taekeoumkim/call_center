@@ -1,10 +1,10 @@
 # backend/app/routes/counselor_routes.py
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash, check_password_hash
 from .. import db
 from ..models import User, ClientCall, ConsultationReport
 from ..utils.hybrid_encryption import HybridEncryption
+import re
 
 counselor_bp = Blueprint('counselor', __name__)
 
@@ -12,6 +12,16 @@ def log_event(event: str, data: dict = None):
     if data and 'name' in data:
         data = {**data, 'user_name': data.pop('name')}
     current_app.logger.info(f"[Counselor] {event}", extra=data if data else {})
+
+def validate_password(password):
+    """비밀번호 유효성 검사"""
+    if len(password) < 8:
+        return False, "비밀번호는 8자 이상이어야 합니다."
+    if not any(c.isalpha() for c in password):
+        return False, "비밀번호는 영문자를 포함해야 합니다."
+    if not any(c.isdigit() for c in password):
+        return False, "비밀번호는 숫자를 포함해야 합니다."
+    return True, ""
 
 # --- 상담사 상태 조회 및 변경 ---
 @counselor_bp.route('/status', methods=['GET', 'POST'])
@@ -138,7 +148,7 @@ def change_counselor_password():
         log_event('비밀번호 변경 실패 - 필수 필드 누락', {'user_id': current_user_id})
         return jsonify({"message": "Current password, new password, and confirmation are required"}), 400
     
-    if not check_password_hash(user.password_hash, current_password): # User 모델에 password_hash 필드가 있고, 여기에 해시된 비밀번호가 저장되어 있다고 가정
+    if not user.check_password(current_password):
         log_event('비밀번호 변경 실패 - 현재 비밀번호 불일치', {'user_id': current_user_id})
         return jsonify({"message": "Invalid current password"}), 400
     
@@ -146,12 +156,13 @@ def change_counselor_password():
         log_event('비밀번호 변경 실패 - 새 비밀번호 불일치', {'user_id': current_user_id})
         return jsonify({"message": "New passwords do not match"}), 400
     
-    # 새 비밀번호 유효성 검사 (예: 길이, 복잡도 - 필요시 추가)
-    if len(new_password) < 6: # 예시: 최소 6자
-        log_event('비밀번호 변경 실패 - 비밀번호 너무 짧음', {'user_id': current_user_id})
-        return jsonify({"message": "New password is too short (minimum 6 characters)"}), 400
+    # 새 비밀번호 유효성 검사
+    is_valid, error_message = validate_password(new_password)
+    if not is_valid:
+        log_event('비밀번호 변경 실패 - 비밀번호 정책 불일치', {'user_id': current_user_id})
+        return jsonify({"message": error_message}), 400
 
-    user.password_hash = generate_password_hash(new_password) # 새 비밀번호를 해시하여 저장
+    user.set_password(new_password)
     try:
         db.session.commit()
         log_event('비밀번호 변경 성공', {'user_id': current_user_id})

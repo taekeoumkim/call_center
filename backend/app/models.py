@@ -3,7 +3,7 @@ from . import db # app/__init__.py 에서 생성된 db 객체를 가져옴
 from datetime import datetime, timezone
 import logging
 from .utils.hybrid_encryption import EncryptionError
-from werkzeug.security import generate_password_hash, check_password_hash
+from argon2 import PasswordHasher, Type
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +17,26 @@ class User(db.Model): # 예시 모델, 실제 모델명으로 대체
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     def set_password(self, password):
-        """비밀번호를 해시하여 저장합니다."""
-        self.password_hash = generate_password_hash(password)
+        """비밀번호를 Argon2id로 해시하여 저장합니다."""
+        ph = PasswordHasher(
+            time_cost=3,        # 반복 횟수 (기본값: 3)
+            memory_cost=65536,  # 메모리 사용량 (64MB)
+            parallelism=4,      # 병렬 처리 수
+            hash_len=32,        # 해시 길이
+            salt_len=16,        # 솔트 길이
+            encoding='utf-8',   # 인코딩
+            type=Type.ID        # Argon2id 사용
+        )
+        self.password_hash = ph.hash(password)
 
     def check_password(self, password):
-        """비밀번호가 일치하는지 확인합니다."""
-        return check_password_hash(self.password_hash, password)
+        """비밀번호가 일치하는지 Argon2id로 확인합니다."""
+        try:
+            ph = PasswordHasher()
+            ph.verify(self.password_hash, password)
+            return True
+        except Exception:
+            return False
 
     def __repr__(self):
         return f'<User {self.username}>'

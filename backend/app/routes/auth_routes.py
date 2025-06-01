@@ -4,7 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import (
     create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 )
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from .. import db
 from ..models import User, TokenBlocklist
 
@@ -77,7 +77,7 @@ def login():
 
     user = User.query.filter_by(username=username).first()
 
-    if not user or not check_password_hash(user.password_hash, password):
+    if not user or not user.check_password(password):
         log_event('로그인 실패 - 인증 실패', {'username': username})
         return jsonify({'error': '아이디 또는 비밀번호가 올바르지 않습니다.'}), 401
 

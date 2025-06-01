@@ -1,6 +1,7 @@
 # backend/tests/unit/test_models.py
-from app.models import User, ClientCall # 테스트할 모델 임포트
-from werkzeug.security import check_password_hash
+from .. import db
+from ...app.models import User, ClientCall # 테스트할 모델 임포트
+from datetime import datetime, timezone
 
 def test_new_user(db): # db fixture 사용
     """새로운 User 객체가 올바르게 생성되는지 테스트합니다."""
@@ -39,3 +40,9 @@ def test_new_client_call(db):
     assert retrieved_call is not None
     assert retrieved_call.risk_level == 1
     assert retrieved_call.assigned_counselor_id == counselor.id
+
+def test_user_password():
+    user = User(username='testuser', name='Test User')
+    user.set_password('password123')
+    assert user.check_password('password123')
+    assert not user.check_password('wrongpassword')
