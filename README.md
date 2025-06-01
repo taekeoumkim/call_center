@@ -42,17 +42,18 @@ AI 기반 음성 감정 인식 및 자살 위험도 예측 시스템을 통해, 
 
 **Backend:**
 *   Python 3.12
-*   Flask 3.0.x
+*   Flask 3.1.1
     *   Flask-SQLAlchemy (ORM)
     *   Flask-Migrate (데이터베이스 마이그레이션)
     *   Flask-Login (사용자 인증 및 세션 관리)
     *   Flask-CORS (Cross-Origin Resource Sharing)
 *   SQLite (개발용 데이터베이스)
+*   liboqs-python (Quantum-Resistant Cryptography https://github.com/open-quantum-safe/liboqs-python)
 
 **AI / Machine Learning:**
 *   OpenAI Whisper (Speech-To-Text)
-*   KoBERT (또는 유사 BERT 기반 모델) (Text Classification)
-*   PyTorch (또는 TensorFlow) (모델 학습 및 추론)
+*   KoELECTRA (Text Classification)
+*   PyTorch (모델 학습 및 추론)
 
 **Dataset:**
 *   AI Hub '복지 분야 콜센터 상담데이터' (기반 데이터)
@@ -63,6 +64,7 @@ AI 기반 음성 감정 인식 및 자살 위험도 예측 시스템을 통해, 
 ```
 call_center/
 ├── backend/                    # Flask 백엔드 애플리케이션
+│   ├── alembic/                # Flask-Migrate 설정
 │   ├── app/                    # 핵심 애플리케이션 로직
 │   ├── instance/               # 인스턴스 특정 설정 및 파일 (예: SQLite DB 파일)
 │   │   ├── app.db              # SQLite 데이터베이스 파일
@@ -106,11 +108,22 @@ call_center/
 *   Node.js 및 npm (또는 Yarn)
 *   Git
 
-**2. Backend 설정 및 실행:**
+**2. Frontend 설정 및 실행:**
+
+```bash
+# 1. 의존성 설치
+cd call_center_project/frontend
+npm install
+
+# 2. React 빌드
+npm run build
+```
+
+**3. Backend 설정 및 실행:**
 
 ```bash
 # 1. 프로젝트 클론
-git clone [프로젝트 GitHub 저장소 URL]
+git clone https://github.com/taekeoumkim/call_center.git
 cd call_center_project/backend
 
 # 2. 가상 환경 생성 및 활성화
@@ -122,11 +135,12 @@ source venv/bin/activate
 
 # 3. 의존성 패키지 설치
 pip install -r requirements.txt
+# liboqs-python(https://github.com/open-quantum-safe/liboqs-python) 설치 필요
 
 # 4. 데이터베이스 마이그레이션 (최초 실행 시 또는 모델 변경 시)
 # set FLASK_APP=run.py (Windows)
 # export FLASK_APP=run.py (macOS/Linux)
-flask db init  # 최초 1회
+flask db init  # migrations 폴더 없을 시
 flask db migrate -m "initial migration"
 flask db upgrade
 
@@ -135,16 +149,6 @@ python run.py
 # 서버는 기본적으로 http://localhost:5000 에서 실행됩니다.
 ```
 
-**3. Frontend 설정 및 실행:**
-
-```bash
-# 1. 의존성 설치
-cd call_center_project/frontend
-npm install
-
-# 2. React 빌드
-npm run build
-```
 
 ## 👨‍💻 팀원 (Team Members)
 
