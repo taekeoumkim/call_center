@@ -26,7 +26,7 @@ const ClientPage: React.FC = () => {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // 최대 녹음 시간 (초)
-  const MAX_RECORDING_TIME = 10;
+  const MAX_RECORDING_TIME = 20;
 
   // 녹음 시작 시 타이머 시작, 녹음 종료 시 정지
   useEffect(() => {
@@ -51,7 +51,7 @@ const ClientPage: React.FC = () => {
   useEffect(() => {
     if (recordingTime >= MAX_RECORDING_TIME && isRecording) {
       stopRecording();
-      alert('최대 10초까지 녹음할 수 있습니다.');
+      alert('최대 20초까지 녹음할 수 있습니다.');
     }
   }, [recordingTime, isRecording]);
 
