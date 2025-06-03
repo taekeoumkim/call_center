@@ -14,14 +14,14 @@ whisper_model_name = "YongJaeLee/Whisper_FineTuning_Ko_Stagewise"
 whisper_processor = None
 whisper_model = None
 
-# KoELECTRA 모델 및 토크나이저 로드 (위험도 예측)
-koelectra_model_name = "seungb1027/koelectra-suicide-risk"
-koelectra_tokenizer = None
-koelectra_model = None
+# RoBERTa 모델 및 토크나이저 로드 (위험도 예측)
+roberta_model_name = "seungb1027/roberta-suicide-risk"
+roberta_tokenizer = None
+roberta_model = None
 
 # 모델 로드 함수 (애플리케이션 시작 시 호출되도록 __init__.py 등에서 관리 가능)
 def load_models():
-    global whisper_processor, whisper_model, koelectra_tokenizer, koelectra_model
+    global whisper_processor, whisper_model, roberta_tokenizer, roberta_model
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device} for AI models.")
 
@@ -32,12 +32,12 @@ def load_models():
         whisper_model.eval() # 추론 모드로 설정
         print("Whisper model loaded.")
 
-    if koelectra_tokenizer is None or koelectra_model is None:
-        print(f"Loading KoELECTRA model: {koelectra_model_name}...")
-        koelectra_tokenizer = AutoTokenizer.from_pretrained(koelectra_model_name)
-        koelectra_model = AutoModelForSequenceClassification.from_pretrained(koelectra_model_name).to(device)
-        koelectra_model.eval() # 추론 모드로 설정
-        print("KoELECTRA model loaded.")
+    if roberta_tokenizer is None or roberta_model is None:
+        print(f"Loading RoBERTa model: {roberta_model_name}...")
+        roberta_tokenizer = AutoTokenizer.from_pretrained(roberta_model_name)
+        roberta_model = AutoModelForSequenceClassification.from_pretrained(roberta_model_name).to(device)
+        roberta_model.eval() # 추론 모드로 설정
+        print("RoBERTa model loaded.")
 
 # --- 1. 음성 파일을 텍스트로 변환 (STT) ---
 def speech_to_text(audio_file_path):
@@ -68,16 +68,16 @@ def speech_to_text(audio_file_path):
 
 # --- 2. 텍스트 기반 자살 위험도 예측 ---
 def predict_suicide_risk(text):
-    if koelectra_model is None or koelectra_tokenizer is None:
+    if roberta_model is None or roberta_tokenizer is None:
         load_models() # 모델이 로드되지 않았다면 로드
 
-    device = koelectra_model.device
+    device = roberta_model.device
 
     try:
-        inputs = koelectra_tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512).to(device)
+        inputs = roberta_tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512).to(device)
 
         with torch.no_grad():
-            outputs = koelectra_model(**inputs)
+            outputs = roberta_model(**inputs)
             logits = outputs.logits
 
         # 로짓에서 확률 계산 (Softmax) 및 가장 높은 확률의 클래스 예측
