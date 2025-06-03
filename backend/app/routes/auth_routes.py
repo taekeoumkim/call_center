@@ -46,6 +46,16 @@ def signup():
         if not all([username, password, name]):
             return jsonify({'error': '모든 필드를 입력해주세요.'}), 400
             
+        # 아이디 유효성 검사
+        is_valid_username, username_error = validate_username(username)
+        if not is_valid_username:
+            return jsonify({'error': username_error}), 400
+            
+        # 비밀번호 유효성 검사
+        is_valid_password, password_error = validate_password(password)
+        if not is_valid_password:
+            return jsonify({'error': password_error}), 400
+            
         if User.query.filter_by(username=username).first():
             return jsonify({'error': '이미 사용 중인 아이디입니다.'}), 400
             
