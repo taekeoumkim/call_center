@@ -134,8 +134,52 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # 3. 의존성 패키지 설치
+
+# 3-1. liboqs-python 설치: (Linux 환경 추천)
+
+# liboqs (C 라이브러리) 빌드 및 설치에 필요한 의존성 설치
+sudo apt update && sudo apt upgrade
+sudo apt install build-essential cmake git libssl-dev ninja-build
+
+# liboqs (C 라이브러리) 소스 코드 클론, 빌드 및 설치
+# liboqs를 클론할 적당한 디렉토리로 이동 (예: 홈 디렉토리)
+cd ~
+
+# liboqs 저장소 클론
+git clone --branch main https://github.com/open-quantum-safe/liboqs.git
+cd liboqs
+
+# 빌드 디렉토리 생성 및 이동
+mkdir build && cd build
+
+# CMake를 사용하여 빌드 파일 생성
+# 기본적으로 OQS_USE_OPENSSL=ON 이지만 명시적으로 지정할 수 있습니다.
+# 알고리즘을 선택적으로 빌드할 수도 있지만, 기본값으로 대부분 활성화됩니다.
+# cmake .. # make를 사용하려면
+cmake -GNinja .. # ninja를 사용하려면 (더 빠름)
+
+# liboqs 빌드 (컴퓨터 코어 수에 맞게 -j 옵션 조정 가능)
+# make -j$(nproc) # make를 사용하려면
+ninja # ninja를 사용하려면
+
+# liboqs 시스템에 설치 (기본적으로 /usr/local 에 설치됨)
+# sudo make install # make를 사용하려면
+# 또는
+sudo ninja install # ninja를 사용하려면
+
+# 공유 라이브러리 캐시 업데이트
+sudo ldconfig
+
+# 원래 프로젝트 디렉토리로 돌아가기
+cd ~
+
+# liboqs-python 설치
+git clone --depth=1 https://github.com/open-quantum-safe/liboqs-python
+cd liboqs-python
+pip install .
+    
+# 나머지 의존성 설치
 pip install -r requirements.txt
-# liboqs-python(https://github.com/open-quantum-safe/liboqs-python) 설치 필요
 
 # 4. 데이터베이스 마이그레이션 (최초 실행 시 또는 모델 변경 시)
 # set FLASK_APP=run.py (Windows)
