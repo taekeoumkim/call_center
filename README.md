@@ -52,7 +52,7 @@ AI 기반 음성 감정 인식 및 자살 위험도 예측 시스템을 통해, 
 
 **AI / Machine Learning:**
 *   OpenAI Whisper (Speech-To-Text)
-*   KoELECTRA (Text Classification)
+*   RoBERTa (Text Classification)
 *   PyTorch (모델 학습 및 추론)
 
 **Dataset:**
