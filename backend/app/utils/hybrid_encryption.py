@@ -103,18 +103,19 @@ class HybridEncryption:
         
         try:
             # 새로운 키쌍 생성
-            kem = oqs.KeyEncapsulation(self.PQC_KEM_ALG)
-            # generate_keypair()는 (public_key_bytes, secret_key_bytes) 튜플을 반환
-            generated_public_key, generated_private_key = kem.generate_keypair() # 수정된 부분
-            
-            # 키 저장
-            with open(public_key_path, "wb") as f_pub:
-                f_pub.write(generated_public_key) # 실제 공개키 바이트 저장
-            with open(private_key_path, "wb") as f_priv:
-                f_priv.write(generated_private_key) # 실제 개인키 바이트 저장
-            
-            logger.info("새로운 PQC 공개키와 개인키를 생성하고 저장했습니다.")
-            return generated_public_key, generated_private_key # 올바른 튜플 반환
+            with oqs.KeyEncapsulation(self.PQC_KEM_ALG) as kem:
+                # 키쌍 생성
+                public_key = kem.generate_keypair()
+                secret_key = kem.export_secret_key()
+                
+                # 키 저장
+                with open(public_key_path, "wb") as f_pub:
+                    f_pub.write(public_key)
+                with open(private_key_path, "wb") as f_priv:
+                    f_priv.write(secret_key)
+                
+                logger.info("새로운 PQC 공개키와 개인키를 생성하고 저장했습니다.")
+                return public_key, secret_key
             
         except Exception as e:
             logger.error(f"PQC 키 생성/저장 실패: {e}")
@@ -357,7 +358,7 @@ class HybridEncryption:
             # 필드 데이터를 DEK로 암호화
             nonce = os.urandom(12)
             aes_gcm = AESGCM(self._current_dek)
-            ciphertext = aes_gcm.encrypt(nonce, field_value.encode(), None)
+            ciphertext = aes_gcm.encrypt(nonce, field_value.encode('utf-8'), None)
             
             # nonce와 암호문을 결합하여 반환
             return nonce + ciphertext
@@ -389,7 +390,7 @@ class HybridEncryption:
                 aes_gcm = AESGCM(dek)
                 decrypted_data = aes_gcm.decrypt(nonce, ciphertext, None)
                 logger.debug("필드 데이터 복호화 성공")
-                return decrypted_data.decode()
+                return decrypted_data.decode('utf-8')
             except Exception as e:
                 logger.error(f"필드 데이터 복호화 실패: {e}")
                 raise EncryptionError(f"필드 데이터 복호화 실패: {e}")
